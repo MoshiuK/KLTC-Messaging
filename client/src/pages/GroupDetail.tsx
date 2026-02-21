@@ -11,18 +11,33 @@ export default function GroupDetail() {
   const [showAdd, setShowAdd] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [error, setError] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [success, setSuccess] = useState("");
+
+  const loadMembers = async () => {
+    if (!id) return;
+    try {
+      const m = await api.getGroupMembers(id);
+      setMembers(m);
+    } catch (err: any) {
+      setError("Failed to load members: " + err.message);
+    }
+  };
+
+  const loadContacts = async () => {
+    try {
+      const c = await api.getContacts();
+      setContacts(c);
+    } catch (err: any) {
+      setError("Failed to load contacts: " + err.message);
+    }
+  };
 
   const loadData = async () => {
     if (!id) return;
-    try {
-      const [m, c] = await Promise.all([api.getGroupMembers(id), api.getContacts()]);
-      setMembers(m);
-      setContacts(c);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+    setError("");
+    await Promise.all([loadMembers(), loadContacts()]);
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -38,13 +53,19 @@ export default function GroupDetail() {
 
   const addMembers = async () => {
     if (!id || selectedIds.length === 0) return;
+    setAdding(true);
+    setError("");
+    setSuccess("");
     try {
-      await api.addGroupMembers(id, selectedIds);
+      const result = await api.addGroupMembers(id, selectedIds);
+      setSuccess(`Successfully added ${result.added} member${result.added !== 1 ? "s" : ""} to the group.`);
       setSelectedIds([]);
       setShowAdd(false);
-      loadData();
+      await loadData();
     } catch (err: any) {
-      setError(err.message);
+      setError("Failed to add members: " + err.message);
+    } finally {
+      setAdding(false);
     }
   };
 
@@ -52,7 +73,7 @@ export default function GroupDetail() {
     if (!id) return;
     try {
       await api.removeGroupMember(id, contactId);
-      loadData();
+      await loadData();
     } catch (err: any) {
       setError(err.message);
     }
@@ -68,20 +89,26 @@ export default function GroupDetail() {
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
         <h1 style={{ margin: 0 }}>Group Members ({members.length})</h1>
-        <button onClick={() => setShowAdd(!showAdd)} style={btnPrimary}>
+        <button onClick={() => { setShowAdd(!showAdd); setSuccess(""); }} style={btnPrimary}>
           {showAdd ? "Cancel" : "+ Add Members"}
         </button>
       </div>
 
       {error && <div style={errorBox}>{error}</div>}
+      {success && <div style={successBox}>{success}</div>}
 
       {showAdd && (
         <div style={formCard}>
           <h3 style={{ marginTop: 0 }}>Add Contacts to Group</h3>
-          {availableContacts.length === 0 ? (
+          {contacts.length === 0 ? (
+            <p style={{ color: "#666" }}>No contacts found. <Link to="/contacts" style={{ color: "#3498db" }}>Create contacts first.</Link></p>
+          ) : availableContacts.length === 0 ? (
             <p style={{ color: "#666" }}>All active contacts are already in this group.</p>
           ) : (
             <>
+              <p style={{ margin: "0 0 8px", fontSize: 13, color: "#666" }}>
+                Select contacts to add ({availableContacts.length} available):
+              </p>
               <div style={{ maxHeight: 300, overflowY: "auto", border: "1px solid #eee", borderRadius: 4 }}>
                 {availableContacts.map((c) => (
                   <label
@@ -106,8 +133,8 @@ export default function GroupDetail() {
                   </label>
                 ))}
               </div>
-              <button onClick={addMembers} disabled={selectedIds.length === 0} style={{ ...btnPrimary, marginTop: 12 }}>
-                Add {selectedIds.length} Contact{selectedIds.length !== 1 ? "s" : ""}
+              <button onClick={addMembers} disabled={selectedIds.length === 0 || adding} style={{ ...btnPrimary, marginTop: 12, opacity: adding ? 0.7 : 1 }}>
+                {adding ? "Adding..." : `Add ${selectedIds.length} Contact${selectedIds.length !== 1 ? "s" : ""}`}
               </button>
             </>
           )}
@@ -160,6 +187,7 @@ function Chip({ label, color }: { label: string; color: string }) {
 const btnPrimary: React.CSSProperties = { padding: "8px 16px", background: "#1a1a2e", color: "#fff", border: "none", borderRadius: 4, cursor: "pointer", fontSize: 14 };
 const btnSmall: React.CSSProperties = { padding: "4px 10px", background: "#3498db", color: "#fff", border: "none", borderRadius: 4, cursor: "pointer", fontSize: 12 };
 const errorBox: React.CSSProperties = { color: "#e74c3c", marginBottom: 12, padding: 8, background: "#ffeaea", borderRadius: 4 };
+const successBox: React.CSSProperties = { color: "#27ae60", marginBottom: 12, padding: 8, background: "#eafaf1", borderRadius: 4 };
 const formCard: React.CSSProperties = { background: "#fff", padding: 20, borderRadius: 8, marginBottom: 16, boxShadow: "0 1px 3px rgba(0,0,0,0.1)" };
 const tableStyle: React.CSSProperties = { width: "100%", borderCollapse: "collapse", background: "#fff", borderRadius: 8, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.1)" };
 const thStyle: React.CSSProperties = { textAlign: "left", padding: "10px 12px", borderBottom: "2px solid #eee", fontSize: 13, fontWeight: 600 };

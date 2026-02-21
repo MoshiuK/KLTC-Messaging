@@ -12,6 +12,7 @@ export default function Groups() {
   const [form, setForm] = useState({ name: "", description: "" });
   const [error, setError] = useState("");
   const [formError, setFormError] = useState("");
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const loadGroups = async () => {
     try {
@@ -58,9 +59,9 @@ export default function Groups() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Delete this group? This will remove all member associations.")) return;
     try {
       await api.deleteGroup(id);
+      setConfirmDeleteId(null);
       loadGroups();
     } catch (err: any) {
       setError(err.message);
@@ -114,10 +115,17 @@ export default function Groups() {
               <p style={{ fontSize: 12, color: "#999", margin: "8px 0" }}>
                 Created by {g.createdBy.firstName} {g.createdBy.lastName}
               </p>
-              <div style={{ display: "flex", gap: 8 }}>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <button onClick={() => navigate(`/groups/${g.id}`)} style={btnSmall}>Manage Members</button>
                 <button onClick={() => startEdit(g)} style={{ ...btnSmall, background: "#f39c12" }}>Edit</button>
-                <button onClick={() => handleDelete(g.id)} style={{ ...btnSmall, background: "#e74c3c" }}>Delete</button>
+                {confirmDeleteId === g.id ? (
+                  <>
+                    <button onClick={() => handleDelete(g.id)} style={{ ...btnSmall, background: "#e74c3c" }}>Confirm Delete</button>
+                    <button onClick={() => setConfirmDeleteId(null)} style={{ ...btnSmall, background: "#95a5a6" }}>Cancel</button>
+                  </>
+                ) : (
+                  <button onClick={() => setConfirmDeleteId(g.id)} style={{ ...btnSmall, background: "#e74c3c" }}>Delete</button>
+                )}
               </div>
             </div>
           ))}
