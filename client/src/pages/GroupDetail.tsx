@@ -98,46 +98,53 @@ export default function GroupDetail() {
       {success && <div style={successBox}>{success}</div>}
 
       {showAdd && (
-        <div style={formCard}>
-          <h3 style={{ marginTop: 0 }}>Add Contacts to Group</h3>
-          {contacts.length === 0 ? (
-            <p style={{ color: "#666" }}>No contacts found. <Link to="/contacts" style={{ color: "#3498db" }}>Create contacts first.</Link></p>
-          ) : availableContacts.length === 0 ? (
-            <p style={{ color: "#666" }}>All active contacts are already in this group.</p>
-          ) : (
-            <>
-              <p style={{ margin: "0 0 8px", fontSize: 13, color: "#666" }}>
-                Select contacts to add ({availableContacts.length} available):
-              </p>
-              <div style={{ maxHeight: 300, overflowY: "auto", border: "1px solid #eee", borderRadius: 4 }}>
-                {availableContacts.map((c) => (
-                  <label
-                    key={c.id}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      padding: "8px 12px",
-                      borderBottom: "1px solid #f5f5f5",
-                      cursor: "pointer",
-                      background: selectedIds.includes(c.id) ? "#e8f4fd" : "transparent",
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.includes(c.id)}
-                      onChange={() => toggleSelect(c.id)}
-                      style={{ marginRight: 10 }}
-                    />
-                    <span>{c.fullName}</span>
-                    <span style={{ marginLeft: "auto", color: "#999", fontSize: 12 }}>{c.phoneNumber}</span>
-                  </label>
-                ))}
-              </div>
-              <button onClick={addMembers} disabled={selectedIds.length === 0 || adding} style={{ ...btnPrimary, marginTop: 12, opacity: adding ? 0.7 : 1 }}>
-                {adding ? "Adding..." : `Add ${selectedIds.length} Contact${selectedIds.length !== 1 ? "s" : ""}`}
+        <div style={modalBackdrop} onClick={() => { setShowAdd(false); setSelectedIds([]); }}>
+          <div style={modalCard} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <h3 style={{ margin: 0 }}>Add Contacts to Group</h3>
+              <button onClick={() => { setShowAdd(false); setSelectedIds([]); }} style={{ background: "none", border: "none", fontSize: 24, cursor: "pointer", color: "#666", padding: 0, lineHeight: 1 }}>
+                &times;
               </button>
-            </>
-          )}
+            </div>
+            {contacts.length === 0 ? (
+              <p style={{ color: "#666" }}>No contacts found. <Link to="/contacts" style={{ color: "#3498db" }}>Create contacts first.</Link></p>
+            ) : availableContacts.length === 0 ? (
+              <p style={{ color: "#666" }}>All active contacts are already in this group.</p>
+            ) : (
+              <>
+                <p style={{ margin: "0 0 8px", fontSize: 13, color: "#666" }}>
+                  Select contacts to add ({availableContacts.length} available):
+                </p>
+                <div style={{ maxHeight: 350, overflowY: "auto", border: "1px solid #eee", borderRadius: 4 }}>
+                  {availableContacts.map((c) => (
+                    <label
+                      key={c.id}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        padding: "10px 14px",
+                        borderBottom: "1px solid #f5f5f5",
+                        cursor: "pointer",
+                        background: selectedIds.includes(c.id) ? "#e8f4fd" : "transparent",
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(c.id)}
+                        onChange={() => toggleSelect(c.id)}
+                        style={{ marginRight: 12, width: 18, height: 18 }}
+                      />
+                      <span style={{ fontWeight: 500 }}>{c.fullName}</span>
+                      <span style={{ marginLeft: "auto", color: "#999", fontSize: 12 }}>{c.phoneNumber}</span>
+                    </label>
+                  ))}
+                </div>
+                <button onClick={addMembers} disabled={selectedIds.length === 0 || adding} style={{ ...btnPrimary, marginTop: 16, width: "100%", padding: "10px 16px", fontSize: 15, opacity: (selectedIds.length === 0 || adding) ? 0.5 : 1 }}>
+                  {adding ? "Adding..." : `Add ${selectedIds.length} Contact${selectedIds.length !== 1 ? "s" : ""}`}
+                </button>
+              </>
+            )}
+          </div>
         </div>
       )}
 
@@ -188,7 +195,8 @@ const btnPrimary: React.CSSProperties = { padding: "8px 16px", background: "#1a1
 const btnSmall: React.CSSProperties = { padding: "4px 10px", background: "#3498db", color: "#fff", border: "none", borderRadius: 4, cursor: "pointer", fontSize: 12 };
 const errorBox: React.CSSProperties = { color: "#e74c3c", marginBottom: 12, padding: 8, background: "#ffeaea", borderRadius: 4 };
 const successBox: React.CSSProperties = { color: "#27ae60", marginBottom: 12, padding: 8, background: "#eafaf1", borderRadius: 4 };
-const formCard: React.CSSProperties = { background: "#fff", padding: 20, borderRadius: 8, marginBottom: 16, boxShadow: "0 1px 3px rgba(0,0,0,0.1)" };
+const modalBackdrop: React.CSSProperties = { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 };
+const modalCard: React.CSSProperties = { background: "#fff", padding: 24, borderRadius: 12, width: "90%", maxWidth: 500, maxHeight: "80vh", overflowY: "auto", boxShadow: "0 8px 30px rgba(0,0,0,0.2)" };
 const tableStyle: React.CSSProperties = { width: "100%", borderCollapse: "collapse", background: "#fff", borderRadius: 8, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.1)" };
 const thStyle: React.CSSProperties = { textAlign: "left", padding: "10px 12px", borderBottom: "2px solid #eee", fontSize: 13, fontWeight: 600 };
 const tdStyle: React.CSSProperties = { padding: "10px 12px", borderBottom: "1px solid #f0f0f0", fontSize: 14 };

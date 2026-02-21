@@ -4,12 +4,16 @@ import app from "./app";
 
 const PORT = parseInt(process.env.PORT || "5173", 10);
 
-// Serve the built client
+// Serve the built client (hashed assets can be cached, HTML cannot)
 const clientDist = path.join(__dirname, "../../client/dist");
-app.use(express.static(clientDist));
+app.use("/assets", express.static(path.join(clientDist, "assets"), { maxAge: "1y" }));
+app.use(express.static(clientDist, { etag: false, lastModified: false }));
 
-// SPA fallback: serve index.html for any non-API route
+// SPA fallback: serve index.html with no-cache headers
 app.get("*", (_req, res) => {
+  res.set("Cache-Control", "no-cache, no-store, must-revalidate");
+  res.set("Pragma", "no-cache");
+  res.set("Expires", "0");
   res.sendFile(path.join(clientDist, "index.html"));
 });
 
