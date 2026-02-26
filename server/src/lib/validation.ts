@@ -65,3 +65,12 @@ export const directSmsSchema = z.object({
   to: e164Phone,
   body: z.string().min(1).max(1600),
 });
+
+export const forgotPasswordSchema = z.object({
+  email: z.string().email(),
+});
+
+export const resetPasswordSchema = z.object({
+  token: z.string().min(1),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+});

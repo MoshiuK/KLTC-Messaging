@@ -42,6 +42,10 @@ export default function Login() {
           <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required style={inputStyle} />
         </div>
 
+        <div style={{ textAlign: "right", marginBottom: 12 }}>
+          <Link to="/forgot-password" style={{ fontSize: 13, color: "#666" }}>Forgot password?</Link>
+        </div>
+
         <button type="submit" disabled={loading} style={{ ...btnStyle, width: "100%", opacity: loading ? 0.7 : 1 }}>
           {loading ? "Signing in..." : "Sign In"}
         </button>
