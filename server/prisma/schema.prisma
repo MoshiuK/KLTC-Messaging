@@ -8,10 +8,15 @@ datasource db {
 }
 
 model Organization {
-  id        String   @id @default(cuid())
-  name      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id             String   @id @default(cuid())
+  name           String
+  appName        String?
+  logoUrl        String?
+  primaryColor   String?
+  secondaryColor String?
+  accentColor    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   users               User[]
   contacts            Contact[]
@@ -19,6 +24,7 @@ model Organization {
   contactStatusEvents ContactStatusEvent[]
   twilioConfigs       TwilioConfig[]
   conversations       Conversation[]
+  voiceCallTwimls     VoiceCallTwiml[]
 }
 
 model User {
@@ -161,12 +167,15 @@ model Message {
   conversationId String
   direction      String
   body           String
+  type           String   @default("sms")
   status         String?
   twilioSid      String?  @unique
   fromNumber     String
   toNumber       String
   errorCode      String?
   errorMessage   String?
+  callDuration   Int?
+  callStatus     String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -175,4 +184,19 @@ model Message {
   @@index([conversationId])
   @@index([twilioSid])
   @@index([createdAt])
+}
+
+model VoiceCallTwiml {
+  id             String   @id @default(cuid())
+  organizationId String
+  messageText    String
+  voiceName      String   @default("alice")
+  voiceLanguage  String   @default("en-US")
+  used           Boolean  @default(false)
+  expiresAt      DateTime
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
 }

@@ -74,3 +74,27 @@ export const resetPasswordSchema = z.object({
   token: z.string().min(1),
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
+
+// Voice call schemas
+export const voiceCallSchema = z.object({
+  to: e164Phone,
+  message: z.string().min(1, "Message text is required").max(5000),
+  voice: z.enum(["alice", "man", "woman"]).optional().default("alice"),
+  language: z.string().optional().default("en-US"),
+});
+
+export const groupVoiceCallSchema = z.object({
+  groupId: z.string().min(1, "Group ID is required"),
+  message: z.string().min(1, "Message text is required").max(5000),
+  voice: z.enum(["alice", "man", "woman"]).optional().default("alice"),
+  language: z.string().optional().default("en-US"),
+});
+
+// Branding schema
+export const updateBrandingSchema = z.object({
+  appName: z.string().min(1).max(100).optional(),
+  logoUrl: z.string().url().max(500).optional().nullable(),
+  primaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/, "Must be a valid hex color").optional(),
+  secondaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/, "Must be a valid hex color").optional(),
+  accentColor: z.string().regex(/^#[0-9a-fA-F]{6}$/, "Must be a valid hex color").optional(),
+});

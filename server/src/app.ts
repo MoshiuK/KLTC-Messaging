@@ -4,6 +4,8 @@ import authRoutes from "./routes/auth";
 import contactRoutes from "./routes/contacts";
 import groupRoutes from "./routes/groups";
 import smsRoutes from "./routes/sms";
+import voiceRoutes from "./routes/voice";
+import orgRoutes from "./routes/org";
 import notificationRoutes from "./routes/notifications";
 import { errorHandler } from "./middleware/errorHandler";
 
@@ -23,6 +25,8 @@ app.use("/api/auth", authRoutes);
 app.use("/api/contacts", contactRoutes);
 app.use("/api/groups", groupRoutes);
 app.use("/api/sms", smsRoutes);
+app.use("/api/voice", voiceRoutes);
+app.use("/api/org", orgRoutes);
 app.use("/api/notifications", notificationRoutes);
 
 // Error handler

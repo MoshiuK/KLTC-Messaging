@@ -76,3 +76,27 @@ export interface AuthResponse {
   token: string;
   user: User;
 }
+
+// Voice call types
+export interface VoiceCallResult {
+  contactId: string;
+  contactName: string;
+  phoneNumber: string;
+  status: "called" | "skipped" | "failed";
+  reason?: string;
+  callSid?: string;
+}
+
+export interface GroupVoiceCallResponse {
+  summary: { total: number; called: number; skipped: number; failed: number };
+  results: VoiceCallResult[];
+}
+
+// Branding types
+export interface BrandingConfig {
+  appName: string;
+  logoUrl: string | null;
+  primaryColor: string;
+  secondaryColor: string;
+  accentColor: string;
+}

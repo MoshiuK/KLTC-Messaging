@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../components/AuthContext";
+import { useBranding } from "../components/BrandingContext";
 
 export default function Login() {
   const { login } = useAuth();
+  const { branding } = useBranding();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -27,7 +29,7 @@ export default function Login() {
   return (
     <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "100vh", background: "#f5f5f5" }}>
       <form onSubmit={handleSubmit} style={{ background: "#fff", padding: 32, borderRadius: 8, boxShadow: "0 2px 8px rgba(0,0,0,0.1)", width: 360 }}>
-        <h2 style={{ marginTop: 0 }}>KLTC Messaging</h2>
+        <h2 style={{ marginTop: 0 }}>{branding.appName}</h2>
         <p style={{ color: "#666" }}>Sign in to your account</p>
 
         {error && <div style={{ color: "#e74c3c", marginBottom: 12, padding: 8, background: "#ffeaea", borderRadius: 4 }}>{error}</div>}
@@ -46,7 +48,7 @@ export default function Login() {
           <Link to="/forgot-password" style={{ fontSize: 13, color: "#666" }}>Forgot password?</Link>
         </div>
 
-        <button type="submit" disabled={loading} style={{ ...btnStyle, width: "100%", opacity: loading ? 0.7 : 1 }}>
+        <button type="submit" disabled={loading} style={{ padding: "10px 16px", background: branding.primaryColor, color: "#fff", border: "none", borderRadius: 4, cursor: "pointer", fontSize: 14, width: "100%", opacity: loading ? 0.7 : 1 }}>
           {loading ? "Signing in..." : "Sign In"}
         </button>
 
@@ -65,14 +67,4 @@ const inputStyle: React.CSSProperties = {
   borderRadius: 4,
   fontSize: 14,
   boxSizing: "border-box",
-};
-
-const btnStyle: React.CSSProperties = {
-  padding: "10px 16px",
-  background: "#1a1a2e",
-  color: "#fff",
-  border: "none",
-  borderRadius: 4,
-  cursor: "pointer",
-  fontSize: 14,
 };

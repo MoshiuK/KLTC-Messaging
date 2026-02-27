@@ -123,4 +123,26 @@ export const api = {
     const qs = params ? "?" + new URLSearchParams(params).toString() : "";
     return request<{ events: any[]; total: number }>(`/notifications${qs}`);
   },
+
+  // Voice calls
+  voiceCall: (to: string, message: string, voice?: string, language?: string) =>
+    request<any>("/voice/call", {
+      method: "POST",
+      body: JSON.stringify({ to, message, voice, language }),
+    }),
+
+  voiceCallGroup: (groupId: string, message: string, voice?: string, language?: string) =>
+    request<any>("/voice/call-group", {
+      method: "POST",
+      body: JSON.stringify({ groupId, message, voice, language }),
+    }),
+
+  // Branding
+  getBranding: () => request<any>("/org/branding"),
+
+  updateBranding: (data: Record<string, unknown>) =>
+    request<any>("/org/branding", {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
 };

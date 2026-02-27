@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../components/AuthContext";
+import { useBranding } from "../components/BrandingContext";
 
 export default function Register() {
   const { register } = useAuth();
+  const { branding } = useBranding();
   const navigate = useNavigate();
   const [form, setForm] = useState({ email: "", password: "", firstName: "", lastName: "", organizationName: "" });
   const [error, setError] = useState("");
@@ -58,7 +60,7 @@ export default function Register() {
           <input type="password" value={form.password} onChange={(e) => set("password", e.target.value)} required minLength={6} style={inputStyle} />
         </div>
 
-        <button type="submit" disabled={loading} style={{ ...btnStyle, width: "100%", opacity: loading ? 0.7 : 1 }}>
+        <button type="submit" disabled={loading} style={{ padding: "10px 16px", background: branding.primaryColor, color: "#fff", border: "none", borderRadius: 4, cursor: "pointer", fontSize: 14, width: "100%", opacity: loading ? 0.7 : 1 }}>
           {loading ? "Creating..." : "Create Account"}
         </button>
 
@@ -72,4 +74,3 @@ export default function Register() {
 
 const labelStyle: React.CSSProperties = { display: "block", marginBottom: 4, fontSize: 14 };
 const inputStyle: React.CSSProperties = { width: "100%", padding: "8px 12px", border: "1px solid #ddd", borderRadius: 4, fontSize: 14, boxSizing: "border-box" };
-const btnStyle: React.CSSProperties = { padding: "10px 16px", background: "#1a1a2e", color: "#fff", border: "none", borderRadius: 4, cursor: "pointer", fontSize: 14 };

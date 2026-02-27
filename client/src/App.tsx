@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./components/AuthContext";
+import { BrandingProvider } from "./components/BrandingContext";
 import Layout from "./components/Layout";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Login from "./pages/Login";
@@ -11,7 +12,9 @@ import Contacts from "./pages/Contacts";
 import Groups from "./pages/Groups";
 import GroupDetail from "./pages/GroupDetail";
 import GroupMessage from "./pages/GroupMessage";
+import VoiceCall from "./pages/VoiceCall";
 import Notifications from "./pages/Notifications";
+import Settings from "./pages/Settings";
 
 function AppRoutes() {
   const { user, loading } = useAuth();
@@ -38,7 +41,9 @@ function AppRoutes() {
         <Route path="/groups" element={<Groups />} />
         <Route path="/groups/:id" element={<GroupDetail />} />
         <Route path="/group-message" element={<GroupMessage />} />
+        <Route path="/voice-call" element={<VoiceCall />} />
         <Route path="/notifications" element={<Notifications />} />
+        <Route path="/settings" element={<Settings />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
@@ -49,7 +54,9 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <AppRoutes />
+        <BrandingProvider>
+          <AppRoutes />
+        </BrandingProvider>
       </AuthProvider>
     </BrowserRouter>
   );
