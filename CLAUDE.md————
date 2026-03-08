@@ -1,0 +1,19 @@
+# CLAUDE.md — KLTC-Messaging
+
+## Project
+Twilio SMS/voice messaging with white-label org branding. Contact groups, group messaging, opt-out, voice calls via TTS.
+
+## Tech Stack
+TypeScript, Twilio API, client/server monorepo
+
+## Site
+text.kltconnect.com
+
+## Structure
+- `client/` — Frontend
+- - `server/` — Backend API
+  - - Docker container: `white-label-pbx`
+   
+    - ## Related
+    - KLTC-pbx, KLTC, Knox-Media-Group/white-label-pbx
+    - Hub: github.com/MoshiuK/kmgi-hub
