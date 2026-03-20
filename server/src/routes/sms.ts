@@ -6,34 +6,53 @@ import { sendSms } from "../services/twilio";
 
 const router = Router();
 
+// Concurrency limiter for batch operations
+const BATCH_CONCURRENCY = 5;
+
+async function processBatch<T, R>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = [];
+  for (let i = 0; i < items.length; i += concurrency) {
+    const batch = items.slice(i, i + concurrency);
+    const batchResults = await Promise.all(batch.map(fn));
+    results.push(...batchResults);
+  }
+  return results;
+}
+
 // POST /api/sms/send — direct send to a single number
 router.post("/send", requireAuth, async (req: Request, res: Response) => {
   try {
     const orgId = req.user!.organizationId;
     const data = directSmsSchema.parse(req.body);
 
-    // Get or create conversation
-    const conversation = await prisma.conversation.upsert({
-      where: { organizationId_phoneNumber: { organizationId: orgId, phoneNumber: data.to } },
-      create: { organizationId: orgId, phoneNumber: data.to },
-      update: {},
-    });
-
+    // Send SMS first
     const result = await sendSms(orgId, data.to, data.body);
 
-    // Store message
-    const message = await prisma.message.create({
-      data: {
-        conversationId: conversation.id,
-        direction: "outbound",
-        body: data.body,
-        status: result.success ? "queued" : "failed",
-        twilioSid: result.twilioSid || null,
-        fromNumber: "org",
-        toNumber: data.to,
-        errorCode: result.errorCode || null,
-        errorMessage: result.error || null,
-      },
+    // Store message in a transaction (conversation + message atomically)
+    const message = await prisma.$transaction(async (tx) => {
+      const conversation = await tx.conversation.upsert({
+        where: { organizationId_phoneNumber: { organizationId: orgId, phoneNumber: data.to } },
+        create: { organizationId: orgId, phoneNumber: data.to },
+        update: {},
+      });
+
+      return tx.message.create({
+        data: {
+          conversationId: conversation.id,
+          direction: "outbound",
+          body: data.body,
+          status: result.success ? "queued" : "failed",
+          twilioSid: result.twilioSid || null,
+          fromNumber: "org",
+          toNumber: data.to,
+          errorCode: result.errorCode || null,
+          errorMessage: result.error || null,
+        },
+      });
     });
 
     if (!result.success) {
@@ -73,99 +92,73 @@ router.post("/send-group", requireAuth, async (req: Request, res: Response) => {
       return;
     }
 
-    const results: Array<{
+    type SendResultItem = {
       contactId: string;
       contactName: string;
       phoneNumber: string;
       status: "sent" | "skipped" | "failed";
       reason?: string;
       twilioSid?: string;
-    }> = [];
+    };
+
+    // Separate skippable from sendable contacts
+    const skipped: SendResultItem[] = [];
+    const toSend: typeof group.members = [];
 
     for (const member of group.members) {
       const contact = member.contact;
-
-      // Skip inactive, opted-out, or blocked contacts
       if (!contact.isActive) {
-        results.push({
-          contactId: contact.id,
-          contactName: contact.fullName,
-          phoneNumber: contact.phoneNumber,
-          status: "skipped",
-          reason: "inactive",
-        });
-        continue;
-      }
-
-      if (contact.isOptedOut) {
-        results.push({
-          contactId: contact.id,
-          contactName: contact.fullName,
-          phoneNumber: contact.phoneNumber,
-          status: "skipped",
-          reason: "opted_out",
-        });
-        continue;
-      }
-
-      if (contact.isBlockedSuspected) {
-        results.push({
-          contactId: contact.id,
-          contactName: contact.fullName,
-          phoneNumber: contact.phoneNumber,
-          status: "skipped",
-          reason: "blocked_suspected",
-        });
-        continue;
-      }
-
-      // Send SMS
-      const sendResult = await sendSms(orgId, contact.phoneNumber, data.body);
-
-      // Store in conversation history
-      const conversation = await prisma.conversation.upsert({
-        where: {
-          organizationId_phoneNumber: {
-            organizationId: orgId,
-            phoneNumber: contact.phoneNumber,
-          },
-        },
-        create: { organizationId: orgId, phoneNumber: contact.phoneNumber },
-        update: {},
-      });
-
-      await prisma.message.create({
-        data: {
-          conversationId: conversation.id,
-          direction: "outbound",
-          body: data.body,
-          status: sendResult.success ? "queued" : "failed",
-          twilioSid: sendResult.twilioSid || null,
-          fromNumber: "org",
-          toNumber: contact.phoneNumber,
-          errorCode: sendResult.errorCode || null,
-          errorMessage: sendResult.error || null,
-        },
-      });
-
-      if (sendResult.success) {
-        results.push({
-          contactId: contact.id,
-          contactName: contact.fullName,
-          phoneNumber: contact.phoneNumber,
-          status: "sent",
-          twilioSid: sendResult.twilioSid,
-        });
+        skipped.push({ contactId: contact.id, contactName: contact.fullName, phoneNumber: contact.phoneNumber, status: "skipped", reason: "inactive" });
+      } else if (contact.isOptedOut) {
+        skipped.push({ contactId: contact.id, contactName: contact.fullName, phoneNumber: contact.phoneNumber, status: "skipped", reason: "opted_out" });
+      } else if (contact.isBlockedSuspected) {
+        skipped.push({ contactId: contact.id, contactName: contact.fullName, phoneNumber: contact.phoneNumber, status: "skipped", reason: "blocked_suspected" });
       } else {
-        results.push({
-          contactId: contact.id,
-          contactName: contact.fullName,
-          phoneNumber: contact.phoneNumber,
-          status: "failed",
-          reason: sendResult.error,
-        });
+        toSend.push(member);
       }
     }
+
+    // Send in batches with concurrency limit
+    const sendResults = await processBatch(toSend, BATCH_CONCURRENCY, async (member) => {
+      const contact = member.contact;
+      const sendResult = await sendSms(orgId, contact.phoneNumber, data.body);
+
+      // Store in conversation history atomically
+      await prisma.$transaction(async (tx) => {
+        const conversation = await tx.conversation.upsert({
+          where: {
+            organizationId_phoneNumber: {
+              organizationId: orgId,
+              phoneNumber: contact.phoneNumber,
+            },
+          },
+          create: { organizationId: orgId, phoneNumber: contact.phoneNumber },
+          update: {},
+        });
+
+        await tx.message.create({
+          data: {
+            conversationId: conversation.id,
+            direction: "outbound",
+            body: data.body,
+            status: sendResult.success ? "queued" : "failed",
+            twilioSid: sendResult.twilioSid || null,
+            fromNumber: "org",
+            toNumber: contact.phoneNumber,
+            errorCode: sendResult.errorCode || null,
+            errorMessage: sendResult.error || null,
+          },
+        });
+      });
+
+      const item: SendResultItem = sendResult.success
+        ? { contactId: contact.id, contactName: contact.fullName, phoneNumber: contact.phoneNumber, status: "sent", twilioSid: sendResult.twilioSid }
+        : { contactId: contact.id, contactName: contact.fullName, phoneNumber: contact.phoneNumber, status: "failed", reason: sendResult.error };
+
+      return item;
+    });
+
+    const results = [...skipped, ...sendResults];
 
     const summary = {
       total: results.length,
@@ -195,14 +188,21 @@ router.post("/inbound", async (req: Request, res: Response) => {
       return;
     }
 
+    // Idempotency: check if we already processed this MessageSid
+    if (MessageSid) {
+      const existing = await prisma.message.findUnique({ where: { twilioSid: MessageSid } });
+      if (existing) {
+        res.status(200).type("text/xml").send("<Response></Response>");
+        return;
+      }
+    }
+
     // Find the org by the To number (our Twilio number)
     const twilioConfig = await prisma.twilioConfig.findFirst({
       where: { phoneNumber: To },
     });
 
-    // Also check env var fallback
-    const orgId = twilioConfig?.organizationId;
-    let resolvedOrgId = orgId;
+    let resolvedOrgId = twilioConfig?.organizationId;
 
     if (!resolvedOrgId) {
       // Fallback: find org by env twilio number match
@@ -213,7 +213,6 @@ router.post("/inbound", async (req: Request, res: Response) => {
     }
 
     if (!resolvedOrgId) {
-      // Can't determine org, just acknowledge
       res.status(200).type("text/xml").send("<Response></Response>");
       return;
     }
@@ -230,68 +229,69 @@ router.post("/inbound", async (req: Request, res: Response) => {
 
     const bodyUpper = Body.trim().toUpperCase();
 
-    // Check for opt-out keywords
+    // Check for opt-out / opt-in keywords
     const optOutKeywords = ["STOP", "UNSUBSCRIBE", "CANCEL", "END", "QUIT"];
     const optInKeywords = ["START", "UNSTOP"];
 
-    if (contact) {
-      if (optOutKeywords.includes(bodyUpper)) {
-        await prisma.contact.update({
-          where: { id: contact.id },
-          data: { isOptedOut: true },
-        });
-
-        await prisma.contactStatusEvent.create({
-          data: {
-            organizationId: resolvedOrgId,
-            contactId: contact.id,
-            eventType: "opted_out",
-            source: "inbound_keyword",
-            detail: `Keyword: ${bodyUpper}`,
-            twilioSid: MessageSid || null,
-          },
-        });
-      } else if (optInKeywords.includes(bodyUpper)) {
-        await prisma.contact.update({
-          where: { id: contact.id },
-          data: { isOptedOut: false },
-        });
-
-        await prisma.contactStatusEvent.create({
-          data: {
-            organizationId: resolvedOrgId,
-            contactId: contact.id,
-            eventType: "opted_in",
-            source: "inbound_keyword",
-            detail: `Keyword: ${bodyUpper}`,
-            twilioSid: MessageSid || null,
-          },
-        });
+    // Process opt-out/opt-in and store message atomically
+    await prisma.$transaction(async (tx) => {
+      if (contact) {
+        if (optOutKeywords.includes(bodyUpper)) {
+          await tx.contact.update({
+            where: { id: contact.id },
+            data: { isOptedOut: true },
+          });
+          await tx.contactStatusEvent.create({
+            data: {
+              organizationId: resolvedOrgId!,
+              contactId: contact.id,
+              eventType: "opted_out",
+              source: "inbound_keyword",
+              detail: `Keyword: ${bodyUpper}`,
+              twilioSid: MessageSid || null,
+            },
+          });
+        } else if (optInKeywords.includes(bodyUpper)) {
+          await tx.contact.update({
+            where: { id: contact.id },
+            data: { isOptedOut: false },
+          });
+          await tx.contactStatusEvent.create({
+            data: {
+              organizationId: resolvedOrgId!,
+              contactId: contact.id,
+              eventType: "opted_in",
+              source: "inbound_keyword",
+              detail: `Keyword: ${bodyUpper}`,
+              twilioSid: MessageSid || null,
+            },
+          });
+        }
       }
-    }
 
-    // Store inbound message in conversation history
-    const conversation = await prisma.conversation.upsert({
-      where: {
-        organizationId_phoneNumber: {
-          organizationId: resolvedOrgId,
-          phoneNumber: From,
+      // Store inbound message in conversation history
+      const conversation = await tx.conversation.upsert({
+        where: {
+          organizationId_phoneNumber: {
+            organizationId: resolvedOrgId!,
+            phoneNumber: From,
+          },
         },
-      },
-      create: { organizationId: resolvedOrgId, phoneNumber: From },
-      update: {},
-    });
+        create: { organizationId: resolvedOrgId!, phoneNumber: From },
+        update: {},
+      });
 
-    await prisma.message.create({
-      data: {
-        conversationId: conversation.id,
-        direction: "inbound",
-        body: Body,
-        status: "received",
-        twilioSid: MessageSid || null,
-        fromNumber: From,
-        toNumber: To,
-      },
+      await tx.message.create({
+        data: {
+          conversationId: conversation.id,
+          direction: "inbound",
+          body: Body,
+          status: "received",
+          twilioSid: MessageSid || null,
+          fromNumber: From,
+          toNumber: To,
+        },
+      });
     });
 
     res.status(200).type("text/xml").send("<Response></Response>");
@@ -364,26 +364,28 @@ router.post("/status", async (req: Request, res: Response) => {
         });
 
         if (!existingEvent) {
-          await prisma.contact.update({
-            where: { id: contact.id },
-            data: {
-              isBlockedSuspected: isBlockSuspected || contact.isBlockedSuspected,
-              blockedReason: isBlockSuspected
-                ? `Error code ${ErrorCode}: ${getErrorDescription(ErrorCode)}`
-                : contact.blockedReason,
-            },
-          });
+          await prisma.$transaction(async (tx) => {
+            await tx.contact.update({
+              where: { id: contact.id },
+              data: {
+                isBlockedSuspected: isBlockSuspected || contact.isBlockedSuspected,
+                blockedReason: isBlockSuspected
+                  ? `Error code ${ErrorCode}: ${getErrorDescription(ErrorCode)}`
+                  : contact.blockedReason,
+              },
+            });
 
-          await prisma.contactStatusEvent.create({
-            data: {
-              organizationId: orgId,
-              contactId: contact.id,
-              eventType,
-              source: "status_callback",
-              detail: `Status: ${MessageStatus}`,
-              twilioSid: MessageSid,
-              errorCode: ErrorCode || null,
-            },
+            await tx.contactStatusEvent.create({
+              data: {
+                organizationId: orgId,
+                contactId: contact.id,
+                eventType,
+                source: "status_callback",
+                detail: `Status: ${MessageStatus}`,
+                twilioSid: MessageSid,
+                errorCode: ErrorCode || null,
+              },
+            });
           });
         }
       }

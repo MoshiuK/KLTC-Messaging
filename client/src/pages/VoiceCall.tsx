@@ -16,21 +16,40 @@ export default function VoiceCall() {
   const [result, setResult] = useState<GroupVoiceCallResponse | null>(null);
   const [singleResult, setSingleResult] = useState<VoiceCallResult | null>(null);
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [loadingGroups, setLoadingGroups] = useState(true);
+  const [loadingContacts, setLoadingContacts] = useState(true);
+  const [validationError, setValidationError] = useState("");
 
+  // Load groups and contacts independently
   useEffect(() => {
-    Promise.all([api.getGroups(), api.getContacts()])
-      .then(([g, c]) => {
-        setGroups(g);
-        setContacts(c);
-      })
+    api.getGroups()
+      .then(setGroups)
       .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
+      .finally(() => setLoadingGroups(false));
+
+    api.getContacts()
+      .then(setContacts)
+      .catch((err) => setError(err.message))
+      .finally(() => setLoadingContacts(false));
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!message.trim()) return;
+    setValidationError("");
+
+    if (!message.trim()) {
+      setValidationError("Please enter a message to be spoken.");
+      return;
+    }
+    if (mode === "group" && !selectedGroupId) {
+      setValidationError("Please select a group.");
+      return;
+    }
+    if (mode === "individual" && !selectedContactPhone) {
+      setValidationError("Please select a contact.");
+      return;
+    }
+
     setError("");
     setResult(null);
     setSingleResult(null);
@@ -38,12 +57,10 @@ export default function VoiceCall() {
 
     try {
       if (mode === "group") {
-        if (!selectedGroupId) return;
         const res = await api.voiceCallGroup(selectedGroupId, message, voice);
         setResult(res);
         setMessage("");
       } else {
-        if (!selectedContactPhone) return;
         const res = await api.voiceCall(selectedContactPhone, message, voice);
         const contact = contacts.find((c) => c.phoneNumber === selectedContactPhone);
         setSingleResult({
@@ -62,6 +79,8 @@ export default function VoiceCall() {
     }
   };
 
+  const loading = mode === "group" ? loadingGroups : loadingContacts;
+
   return (
     <div>
       <h1>Voice Calls</h1>
@@ -74,7 +93,7 @@ export default function VoiceCall() {
         <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
           <button
             type="button"
-            onClick={() => setMode("group")}
+            onClick={() => { setMode("group"); setValidationError(""); }}
             style={{
               padding: "8px 16px",
               background: mode === "group" ? branding.primaryColor : "#eee",
@@ -89,7 +108,7 @@ export default function VoiceCall() {
           </button>
           <button
             type="button"
-            onClick={() => setMode("individual")}
+            onClick={() => { setMode("individual"); setValidationError(""); }}
             style={{
               padding: "8px 16px",
               background: mode === "individual" ? branding.primaryColor : "#eee",
@@ -104,18 +123,19 @@ export default function VoiceCall() {
           </button>
         </div>
 
+        {validationError && <div style={errorBox}>{validationError}</div>}
+
         {/* Group / Contact selector */}
         <div style={{ marginBottom: 12 }}>
           {mode === "group" ? (
             <>
               <label style={labelStyle}>Select Group *</label>
-              {loading ? (
-                <p>Loading...</p>
+              {loadingGroups ? (
+                <p>Loading groups...</p>
               ) : (
                 <select
                   value={selectedGroupId}
                   onChange={(e) => setSelectedGroupId(e.target.value)}
-                  required
                   style={{ ...inputStyle, cursor: "pointer" }}
                 >
                   <option value="">-- Choose a group --</option>
@@ -130,13 +150,12 @@ export default function VoiceCall() {
           ) : (
             <>
               <label style={labelStyle}>Select Contact *</label>
-              {loading ? (
-                <p>Loading...</p>
+              {loadingContacts ? (
+                <p>Loading contacts...</p>
               ) : (
                 <select
                   value={selectedContactPhone}
                   onChange={(e) => setSelectedContactPhone(e.target.value)}
-                  required
                   style={{ ...inputStyle, cursor: "pointer" }}
                 >
                   <option value="">-- Choose a contact --</option>
@@ -173,7 +192,6 @@ export default function VoiceCall() {
           <textarea
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            required
             rows={4}
             maxLength={5000}
             placeholder="Type the message to be spoken..."
@@ -184,7 +202,7 @@ export default function VoiceCall() {
 
         <button
           type="submit"
-          disabled={calling || !message.trim() || (mode === "group" ? !selectedGroupId : !selectedContactPhone)}
+          disabled={calling}
           style={{ padding: "10px 20px", background: branding.primaryColor, color: "#fff", border: "none", borderRadius: 4, cursor: "pointer", fontSize: 14, opacity: calling ? 0.7 : 1 }}
         >
           {calling ? "Calling..." : mode === "group" ? "Call Group" : "Make Call"}
@@ -196,45 +214,47 @@ export default function VoiceCall() {
         <div style={{ background: "#fff", padding: 20, borderRadius: 8, marginTop: 16, boxShadow: "0 1px 3px rgba(0,0,0,0.1)" }}>
           <h3 style={{ marginTop: 0 }}>Call Results</h3>
 
-          <div style={{ display: "flex", gap: 16, marginBottom: 16 }}>
+          <div style={{ display: "flex", gap: 16, marginBottom: 16, flexWrap: "wrap" }}>
             <SummaryChip label="Total" value={result.summary.total} color="#333" />
             <SummaryChip label="Called" value={result.summary.called} color="#27ae60" />
             <SummaryChip label="Skipped" value={result.summary.skipped} color="#f39c12" />
             <SummaryChip label="Failed" value={result.summary.failed} color="#e74c3c" />
           </div>
 
-          <table style={tableStyle}>
-            <thead>
-              <tr>
-                <th style={thStyle}>Contact</th>
-                <th style={thStyle}>Phone</th>
-                <th style={thStyle}>Status</th>
-                <th style={thStyle}>Details</th>
-              </tr>
-            </thead>
-            <tbody>
-              {result.results.map((r, i) => (
-                <tr key={i}>
-                  <td style={tdStyle}>{r.contactName}</td>
-                  <td style={tdStyle}>{r.phoneNumber}</td>
-                  <td style={tdStyle}>
-                    <span
-                      style={{
-                        padding: "2px 8px",
-                        borderRadius: 12,
-                        fontSize: 12,
-                        color: "#fff",
-                        background: r.status === "called" ? "#27ae60" : r.status === "skipped" ? "#f39c12" : "#e74c3c",
-                      }}
-                    >
-                      {r.status}
-                    </span>
-                  </td>
-                  <td style={tdStyle}>{r.reason || r.callSid || "-"}</td>
+          <div style={{ overflowX: "auto" }}>
+            <table style={tableStyle}>
+              <thead>
+                <tr>
+                  <th style={thStyle}>Contact</th>
+                  <th style={thStyle}>Phone</th>
+                  <th style={thStyle}>Status</th>
+                  <th style={thStyle}>Details</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {result.results.map((r, i) => (
+                  <tr key={i}>
+                    <td style={tdStyle}>{r.contactName}</td>
+                    <td style={tdStyle}>{r.phoneNumber}</td>
+                    <td style={tdStyle}>
+                      <span
+                        style={{
+                          padding: "2px 8px",
+                          borderRadius: 12,
+                          fontSize: 12,
+                          color: "#fff",
+                          background: r.status === "called" ? "#27ae60" : r.status === "skipped" ? "#f39c12" : "#e74c3c",
+                        }}
+                      >
+                        {r.status}
+                      </span>
+                    </td>
+                    <td style={tdStyle}>{r.reason || r.callSid || "-"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

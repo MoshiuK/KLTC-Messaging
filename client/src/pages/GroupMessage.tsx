@@ -21,7 +21,8 @@ export default function GroupMessage() {
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedGroupId || !body.trim()) return;
+    if (!selectedGroupId) { setError("Please select a group."); return; }
+    if (!body.trim()) { setError("Please enter a message."); return; }
     setError("");
     setResult(null);
     setSending(true);
@@ -95,38 +96,40 @@ export default function GroupMessage() {
             <SummaryChip label="Failed" value={result.summary.failed} color="#e74c3c" />
           </div>
 
-          <table style={tableStyle}>
-            <thead>
-              <tr>
-                <th style={thStyle}>Contact</th>
-                <th style={thStyle}>Phone</th>
-                <th style={thStyle}>Status</th>
-                <th style={thStyle}>Details</th>
-              </tr>
-            </thead>
-            <tbody>
-              {result.results.map((r, i) => (
-                <tr key={i}>
-                  <td style={tdStyle}>{r.contactName}</td>
-                  <td style={tdStyle}>{r.phoneNumber}</td>
-                  <td style={tdStyle}>
-                    <span
-                      style={{
-                        padding: "2px 8px",
-                        borderRadius: 12,
-                        fontSize: 12,
-                        color: "#fff",
-                        background: r.status === "sent" ? "#27ae60" : r.status === "skipped" ? "#f39c12" : "#e74c3c",
-                      }}
-                    >
-                      {r.status}
-                    </span>
-                  </td>
-                  <td style={tdStyle}>{r.reason || r.twilioSid || "-"}</td>
+          <div style={{ overflowX: "auto" }}>
+            <table style={tableStyle}>
+              <thead>
+                <tr>
+                  <th style={thStyle}>Contact</th>
+                  <th style={thStyle}>Phone</th>
+                  <th style={thStyle}>Status</th>
+                  <th style={thStyle}>Details</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {result.results.map((r, i) => (
+                  <tr key={i}>
+                    <td style={tdStyle}>{r.contactName}</td>
+                    <td style={tdStyle}>{r.phoneNumber}</td>
+                    <td style={tdStyle}>
+                      <span
+                        style={{
+                          padding: "2px 8px",
+                          borderRadius: 12,
+                          fontSize: 12,
+                          color: "#fff",
+                          background: r.status === "sent" ? "#27ae60" : r.status === "skipped" ? "#f39c12" : "#e74c3c",
+                        }}
+                      >
+                        {r.status}
+                      </span>
+                    </td>
+                    <td style={tdStyle}>{r.reason || r.twilioSid || "-"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>

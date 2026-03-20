@@ -4,7 +4,28 @@ function getToken(): string | null {
   return localStorage.getItem("token");
 }
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+// Friendly error messages for common network/server errors
+function friendlyError(status: number, serverMessage?: string): string {
+  if (serverMessage && serverMessage !== "Internal server error") {
+    return serverMessage;
+  }
+  switch (status) {
+    case 400: return "Invalid request. Please check your input.";
+    case 401: return "Your session has expired. Please sign in again.";
+    case 403: return "You don't have permission to do that.";
+    case 404: return "The requested resource was not found.";
+    case 409: return "This record already exists.";
+    case 429: return "Too many requests. Please slow down and try again.";
+    case 502: return "The messaging service is temporarily unavailable.";
+    case 503: return "The server is temporarily unavailable. Please try again.";
+    default: return serverMessage || "Something went wrong. Please try again.";
+  }
+}
+
+// Custom event for session expiry (so AuthContext can listen)
+export const SESSION_EXPIRED_EVENT = "session-expired";
+
+async function request<T>(path: string, options: RequestInit = {}, retries = 2): Promise<T> {
   const token = getToken();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -15,24 +36,45 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const res = await fetch(`${BASE_URL}${path}`, {
-    ...options,
-    headers,
-  });
+  let lastError: Error | null = null;
 
-  if (res.status === 401) {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    window.location.href = "/login";
-    throw new Error("Unauthorized");
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(`${BASE_URL}${path}`, {
+        ...options,
+        headers,
+      });
+
+      if (res.status === 401) {
+        // Dispatch event so AuthContext can handle gracefully
+        window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT));
+        throw new Error("Your session has expired. Please sign in again.");
+      }
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(friendlyError(res.status, body.error));
+      }
+
+      return await res.json();
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+
+      // Don't retry on client errors (4xx) or if it's not a network error
+      const isNetworkError = lastError.message === "Failed to fetch" ||
+        lastError.message.includes("NetworkError") ||
+        lastError.message.includes("network");
+
+      if (!isNetworkError || attempt >= retries) {
+        break;
+      }
+
+      // Wait before retrying (exponential backoff)
+      await new Promise((resolve) => setTimeout(resolve, 1000 * Math.pow(2, attempt)));
+    }
   }
 
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(body.error || `Request failed: ${res.status}`);
-  }
-
-  return res.json();
+  throw lastError || new Error("Request failed");
 }
 
 export const api = {
@@ -41,7 +83,7 @@ export const api = {
     request<{ token: string; user: any }>("/auth/login", {
       method: "POST",
       body: JSON.stringify({ email, password }),
-    }),
+    }, 0), // no retries for login
 
   register: (data: {
     email: string;
@@ -53,7 +95,7 @@ export const api = {
     request<{ token: string; user: any }>("/auth/register", {
       method: "POST",
       body: JSON.stringify(data),
-    }),
+    }, 0),
 
   getMe: () => request<any>("/auth/me"),
 
@@ -61,13 +103,13 @@ export const api = {
     request<{ message: string; resetLink?: string }>("/auth/forgot-password", {
       method: "POST",
       body: JSON.stringify({ email }),
-    }),
+    }, 0),
 
   resetPassword: (token: string, password: string) =>
     request<{ message: string }>("/auth/reset-password", {
       method: "POST",
       body: JSON.stringify({ token, password }),
-    }),
+    }, 0),
 
   // Contacts
   getContacts: (params?: Record<string, string>) => {
@@ -76,47 +118,47 @@ export const api = {
   },
 
   createContact: (data: { firstName: string; lastName: string; phoneNumber: string; email?: string }) =>
-    request<any>("/contacts", { method: "POST", body: JSON.stringify(data) }),
+    request<any>("/contacts", { method: "POST", body: JSON.stringify(data) }, 0),
 
   updateContact: (id: string, data: Record<string, unknown>) =>
-    request<any>(`/contacts/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+    request<any>(`/contacts/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(data) }, 0),
 
   deleteContact: (id: string) =>
-    request<any>(`/contacts/${id}`, { method: "DELETE" }),
+    request<any>(`/contacts/${encodeURIComponent(id)}`, { method: "DELETE" }, 0),
 
   // Groups
   getGroups: () => request<any[]>("/groups"),
 
   createGroup: (data: { name: string; description?: string }) =>
-    request<any>("/groups", { method: "POST", body: JSON.stringify(data) }),
+    request<any>("/groups", { method: "POST", body: JSON.stringify(data) }, 0),
 
   updateGroup: (id: string, data: { name?: string; description?: string | null }) =>
-    request<any>(`/groups/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+    request<any>(`/groups/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(data) }, 0),
 
   deleteGroup: (id: string) =>
-    request<any>(`/groups/${id}`, { method: "DELETE" }),
+    request<any>(`/groups/${encodeURIComponent(id)}`, { method: "DELETE" }, 0),
 
   // Group members
-  getGroupMembers: (groupId: string) => request<any[]>(`/groups/${groupId}/members`),
+  getGroupMembers: (groupId: string) => request<any[]>(`/groups/${encodeURIComponent(groupId)}/members`),
 
   addGroupMembers: (groupId: string, contactIds: string[]) =>
-    request<any>(`/groups/${groupId}/members`, {
+    request<any>(`/groups/${encodeURIComponent(groupId)}/members`, {
       method: "POST",
       body: JSON.stringify({ contactIds }),
-    }),
+    }, 0),
 
   removeGroupMember: (groupId: string, contactId: string) =>
-    request<any>(`/groups/${groupId}/members/${contactId}`, { method: "DELETE" }),
+    request<any>(`/groups/${encodeURIComponent(groupId)}/members/${encodeURIComponent(contactId)}`, { method: "DELETE" }, 0),
 
   // SMS
   sendDirect: (to: string, body: string) =>
-    request<any>("/sms/send", { method: "POST", body: JSON.stringify({ to, body }) }),
+    request<any>("/sms/send", { method: "POST", body: JSON.stringify({ to, body }) }, 0),
 
   sendGroup: (groupId: string, body: string) =>
     request<any>("/sms/send-group", {
       method: "POST",
       body: JSON.stringify({ groupId, body }),
-    }),
+    }, 0),
 
   // Notifications
   getNotifications: (params?: Record<string, string>) => {
@@ -129,13 +171,13 @@ export const api = {
     request<any>("/voice/call", {
       method: "POST",
       body: JSON.stringify({ to, message, voice, language }),
-    }),
+    }, 0),
 
   voiceCallGroup: (groupId: string, message: string, voice?: string, language?: string) =>
     request<any>("/voice/call-group", {
       method: "POST",
       body: JSON.stringify({ groupId, message, voice, language }),
-    }),
+    }, 0),
 
   // Branding
   getBranding: () => request<any>("/org/branding"),
@@ -144,5 +186,5 @@ export const api = {
     request<any>("/org/branding", {
       method: "PATCH",
       body: JSON.stringify(data),
-    }),
+    }, 0),
 };

@@ -4,7 +4,7 @@ import { useAuth } from "../components/AuthContext";
 import { useBranding } from "../components/BrandingContext";
 
 export default function Login() {
-  const { login } = useAuth();
+  const { login, sessionExpired } = useAuth();
   const { branding } = useBranding();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
@@ -15,22 +15,32 @@ export default function Login() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+
+    if (!email.trim()) { setError("Please enter your email."); return; }
+    if (!password) { setError("Please enter your password."); return; }
+
     setLoading(true);
     try {
       await login(email, password);
       navigate("/");
     } catch (err: any) {
-      setError(err.message || "Login failed");
+      setError(err.message || "Login failed. Please check your credentials.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "100vh", background: "#f5f5f5" }}>
-      <form onSubmit={handleSubmit} style={{ background: "#fff", padding: 32, borderRadius: 8, boxShadow: "0 2px 8px rgba(0,0,0,0.1)", width: 360 }}>
+    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "100vh", background: "#f5f5f5", padding: 16 }}>
+      <form onSubmit={handleSubmit} style={{ background: "#fff", padding: 32, borderRadius: 8, boxShadow: "0 2px 8px rgba(0,0,0,0.1)", width: "100%", maxWidth: 360 }}>
         <h2 style={{ marginTop: 0 }}>{branding.appName}</h2>
         <p style={{ color: "#666" }}>Sign in to your account</p>
+
+        {sessionExpired && (
+          <div style={{ color: "#e67e22", marginBottom: 12, padding: 8, background: "#fff8e1", borderRadius: 4, border: "1px solid #ffe0b2" }}>
+            Your session has expired. Please sign in again.
+          </div>
+        )}
 
         {error && <div style={{ color: "#e74c3c", marginBottom: 12, padding: 8, background: "#ffeaea", borderRadius: 4 }}>{error}</div>}
 

@@ -6,20 +6,30 @@ import { makeVoiceCall, generateTwimlSay } from "../services/twilio";
 
 const router = Router();
 
+// Concurrency limiter for batch operations
+const BATCH_CONCURRENCY = 5;
+
+async function processBatch<T, R>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = [];
+  for (let i = 0; i < items.length; i += concurrency) {
+    const batch = items.slice(i, i + concurrency);
+    const batchResults = await Promise.all(batch.map(fn));
+    results.push(...batchResults);
+  }
+  return results;
+}
+
 // POST /api/voice/call — make a voice call to a single contact
 router.post("/call", requireAuth, async (req: Request, res: Response) => {
   try {
     const orgId = req.user!.organizationId;
     const data = voiceCallSchema.parse(req.body);
 
-    // Get or create conversation
-    const conversation = await prisma.conversation.upsert({
-      where: { organizationId_phoneNumber: { organizationId: orgId, phoneNumber: data.to } },
-      create: { organizationId: orgId, phoneNumber: data.to },
-      update: {},
-    });
-
-    // Create TwiML record
+    // Create TwiML record first
     const twiml = await prisma.voiceCallTwiml.create({
       data: {
         organizationId: orgId,
@@ -36,21 +46,29 @@ router.post("/call", requireAuth, async (req: Request, res: Response) => {
 
     const result = await makeVoiceCall(orgId, data.to, twimlUrl, statusUrl);
 
-    // Store message
-    const message = await prisma.message.create({
-      data: {
-        conversationId: conversation.id,
-        direction: "outbound",
-        body: data.message,
-        type: "voice",
-        status: result.success ? (result.status || "queued") : "failed",
-        twilioSid: result.callSid || null,
-        fromNumber: "org",
-        toNumber: data.to,
-        callStatus: result.status || null,
-        errorCode: result.errorCode || null,
-        errorMessage: result.error || null,
-      },
+    // Store message atomically
+    const message = await prisma.$transaction(async (tx) => {
+      const conversation = await tx.conversation.upsert({
+        where: { organizationId_phoneNumber: { organizationId: orgId, phoneNumber: data.to } },
+        create: { organizationId: orgId, phoneNumber: data.to },
+        update: {},
+      });
+
+      return tx.message.create({
+        data: {
+          conversationId: conversation.id,
+          direction: "outbound",
+          body: data.message,
+          type: "voice",
+          status: result.success ? (result.status || "queued") : "failed",
+          twilioSid: result.callSid || null,
+          fromNumber: "org",
+          toNumber: data.to,
+          callStatus: result.status || null,
+          errorCode: result.errorCode || null,
+          errorMessage: result.error || null,
+        },
+      });
     });
 
     if (!result.success) {
@@ -105,101 +123,75 @@ router.post("/call-group", requireAuth, async (req: Request, res: Response) => {
     const twimlUrl = `${baseUrl}/api/voice/twiml/${twiml.id}`;
     const statusUrl = `${baseUrl}/api/voice/status`;
 
-    const results: Array<{
+    type CallResultItem = {
       contactId: string;
       contactName: string;
       phoneNumber: string;
       status: "called" | "skipped" | "failed";
       reason?: string;
       callSid?: string;
-    }> = [];
+    };
+
+    // Separate skippable from callable contacts
+    const skipped: CallResultItem[] = [];
+    const toCall: typeof group.members = [];
 
     for (const member of group.members) {
       const contact = member.contact;
-
-      // Skip inactive, opted-out, or blocked contacts
       if (!contact.isActive) {
-        results.push({
-          contactId: contact.id,
-          contactName: contact.fullName,
-          phoneNumber: contact.phoneNumber,
-          status: "skipped",
-          reason: "inactive",
-        });
-        continue;
-      }
-
-      if (contact.isOptedOut) {
-        results.push({
-          contactId: contact.id,
-          contactName: contact.fullName,
-          phoneNumber: contact.phoneNumber,
-          status: "skipped",
-          reason: "opted_out",
-        });
-        continue;
-      }
-
-      if (contact.isBlockedSuspected) {
-        results.push({
-          contactId: contact.id,
-          contactName: contact.fullName,
-          phoneNumber: contact.phoneNumber,
-          status: "skipped",
-          reason: "blocked_suspected",
-        });
-        continue;
-      }
-
-      // Make voice call
-      const callResult = await makeVoiceCall(orgId, contact.phoneNumber, twimlUrl, statusUrl);
-
-      // Store in conversation history
-      const conversation = await prisma.conversation.upsert({
-        where: {
-          organizationId_phoneNumber: {
-            organizationId: orgId,
-            phoneNumber: contact.phoneNumber,
-          },
-        },
-        create: { organizationId: orgId, phoneNumber: contact.phoneNumber },
-        update: {},
-      });
-
-      await prisma.message.create({
-        data: {
-          conversationId: conversation.id,
-          direction: "outbound",
-          body: data.message,
-          type: "voice",
-          status: callResult.success ? (callResult.status || "queued") : "failed",
-          twilioSid: callResult.callSid || null,
-          fromNumber: "org",
-          toNumber: contact.phoneNumber,
-          callStatus: callResult.status || null,
-          errorCode: callResult.errorCode || null,
-          errorMessage: callResult.error || null,
-        },
-      });
-
-      if (callResult.success) {
-        results.push({
-          contactId: contact.id,
-          contactName: contact.fullName,
-          phoneNumber: contact.phoneNumber,
-          status: "called",
-          callSid: callResult.callSid,
-        });
+        skipped.push({ contactId: contact.id, contactName: contact.fullName, phoneNumber: contact.phoneNumber, status: "skipped", reason: "inactive" });
+      } else if (contact.isOptedOut) {
+        skipped.push({ contactId: contact.id, contactName: contact.fullName, phoneNumber: contact.phoneNumber, status: "skipped", reason: "opted_out" });
+      } else if (contact.isBlockedSuspected) {
+        skipped.push({ contactId: contact.id, contactName: contact.fullName, phoneNumber: contact.phoneNumber, status: "skipped", reason: "blocked_suspected" });
       } else {
-        results.push({
-          contactId: contact.id,
-          contactName: contact.fullName,
-          phoneNumber: contact.phoneNumber,
-          status: "failed",
-          reason: callResult.error,
-        });
+        toCall.push(member);
       }
     }
+
+    // Process calls in batches with concurrency limit
+    const callResults = await processBatch(toCall, BATCH_CONCURRENCY, async (member) => {
+      const contact = member.contact;
+      const callResult = await makeVoiceCall(orgId, contact.phoneNumber, twimlUrl, statusUrl);
+
+      // Store in conversation history atomically
+      await prisma.$transaction(async (tx) => {
+        const conversation = await tx.conversation.upsert({
+          where: {
+            organizationId_phoneNumber: {
+              organizationId: orgId,
+              phoneNumber: contact.phoneNumber,
+            },
+          },
+          create: { organizationId: orgId, phoneNumber: contact.phoneNumber },
+          update: {},
+        });
+
+        await tx.message.create({
+          data: {
+            conversationId: conversation.id,
+            direction: "outbound",
+            body: data.message,
+            type: "voice",
+            status: callResult.success ? (callResult.status || "queued") : "failed",
+            twilioSid: callResult.callSid || null,
+            fromNumber: "org",
+            toNumber: contact.phoneNumber,
+            callStatus: callResult.status || null,
+            errorCode: callResult.errorCode || null,
+            errorMessage: callResult.error || null,
+          },
+        });
+      });
+
+      const item: CallResultItem = callResult.success
+        ? { contactId: contact.id, contactName: contact.fullName, phoneNumber: contact.phoneNumber, status: "called", callSid: callResult.callSid }
+        : { contactId: contact.id, contactName: contact.fullName, phoneNumber: contact.phoneNumber, status: "failed", reason: callResult.error };
+
+      return item;
+    });
+
+    const results = [...skipped, ...callResults];
 
     const summary = {
       total: results.length,
@@ -239,11 +231,15 @@ router.post("/twiml/:twimlId", async (req: Request, res: Response) => {
       return;
     }
 
-    // Mark as used
-    await prisma.voiceCallTwiml.update({
-      where: { id: twimlId },
-      data: { used: true },
-    });
+    // Mark as used (best-effort, don't fail the call if this fails)
+    try {
+      await prisma.voiceCallTwiml.update({
+        where: { id: twimlId },
+        data: { used: true },
+      });
+    } catch {
+      console.error("Failed to mark TwiML as used:", twimlId);
+    }
 
     const xml = generateTwimlSay(
       twimlRecord.messageText,
