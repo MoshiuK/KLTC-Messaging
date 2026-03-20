@@ -16,10 +16,22 @@ export interface VoiceCallResult {
   errorCode?: string;
 }
 
+// In-memory cache for Twilio config per org (TTL: 5 minutes)
+const CONFIG_CACHE_TTL = 5 * 60 * 1000;
+const configCache = new Map<string, { data: { client: twilio.Twilio; phoneNumber: string }; expiresAt: number }>();
+
 export async function getTwilioClient(organizationId: string) {
+  // Check cache first
+  const cached = configCache.get(organizationId);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.data;
+  }
+
   const config = await prisma.twilioConfig.findFirst({
     where: { organizationId },
   });
+
+  let result: { client: twilio.Twilio; phoneNumber: string } | null = null;
 
   if (!config) {
     // Fallback to env vars
@@ -31,13 +43,30 @@ export async function getTwilioClient(organizationId: string) {
       return null;
     }
 
-    return { client: twilio(sid, token), phoneNumber: phone };
+    result = { client: twilio(sid, token), phoneNumber: phone };
+  } else {
+    result = {
+      client: twilio(config.accountSid, config.authToken),
+      phoneNumber: config.phoneNumber,
+    };
   }
 
-  return {
-    client: twilio(config.accountSid, config.authToken),
-    phoneNumber: config.phoneNumber,
-  };
+  // Cache the result
+  configCache.set(organizationId, {
+    data: result,
+    expiresAt: Date.now() + CONFIG_CACHE_TTL,
+  });
+
+  return result;
+}
+
+// Allow cache invalidation when config changes
+export function clearTwilioConfigCache(organizationId?: string) {
+  if (organizationId) {
+    configCache.delete(organizationId);
+  } else {
+    configCache.clear();
+  }
 }
 
 export async function sendSms(
@@ -62,11 +91,11 @@ export async function sendSms(
 
     return { success: true, twilioSid: message.sid };
   } catch (err: unknown) {
-    const error = err as { message?: string; code?: number };
+    const error = err as { message?: string; code?: number; status?: number };
     return {
       success: false,
       error: error.message || "Failed to send SMS",
-      errorCode: error.code?.toString(),
+      errorCode: error.code != null ? String(error.code) : undefined,
     };
   }
 }
@@ -96,11 +125,11 @@ export async function makeVoiceCall(
 
     return { success: true, callSid: call.sid, status: call.status };
   } catch (err: unknown) {
-    const error = err as { message?: string; code?: number };
+    const error = err as { message?: string; code?: number; status?: number };
     return {
       success: false,
       error: error.message || "Failed to make voice call",
-      errorCode: error.code?.toString(),
+      errorCode: error.code != null ? String(error.code) : undefined,
     };
   }
 }
@@ -111,7 +140,10 @@ function escapeXml(text: string): string {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
+    .replace(/'/g, "&apos;")
+    .replace(/\r\n/g, " ")
+    .replace(/\r/g, " ")
+    .replace(/\n/g, " ");
 }
 
 export function generateTwimlSay(
@@ -119,8 +151,10 @@ export function generateTwimlSay(
   voice: string = "alice",
   language: string = "en-US"
 ): string {
+  // Truncate to Twilio's practical limit
+  const truncated = messageText.slice(0, 4000);
   return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="${escapeXml(voice)}" language="${escapeXml(language)}">${escapeXml(messageText)}</Say>
+  <Say voice="${escapeXml(voice)}" language="${escapeXml(language)}">${escapeXml(truncated)}</Say>
 </Response>`;
 }

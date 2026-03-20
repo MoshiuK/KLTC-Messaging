@@ -2,7 +2,16 @@ import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import { prisma } from "../lib/prisma";
 
-const JWT_SECRET = process.env.JWT_SECRET || "change-me-in-production";
+function getJwtSecret(): string {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    console.error("FATAL: JWT_SECRET environment variable is not set. Set it before starting the server.");
+    process.exit(1);
+  }
+  return secret;
+}
+
+const JWT_SECRET: string = getJwtSecret();
 
 export interface AuthUser {
   id: string;
