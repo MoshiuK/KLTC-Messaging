@@ -22,7 +22,7 @@ model Organization {
   contacts            Contact[]
   contactGroups       ContactGroup[]
   contactStatusEvents ContactStatusEvent[]
-  twilioConfigs       TwilioConfig[]
+  telnyxConfigs       TelnyxConfig[]
   conversations       Conversation[]
   voiceCallTwimls     VoiceCallTwiml[]
 }
@@ -59,14 +59,14 @@ model PasswordResetToken {
   @@index([userId])
 }
 
-model TwilioConfig {
-  id             String   @id @default(cuid())
-  organizationId String
-  accountSid     String
-  authToken      String
-  phoneNumber    String
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+model TelnyxConfig {
+  id                 String   @id @default(cuid())
+  organizationId     String
+  apiKey             String
+  phoneNumber        String
+  messagingProfileId String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id])
 
@@ -136,7 +136,7 @@ model ContactStatusEvent {
   eventType      String
   source         String
   detail         String?
-  twilioSid      String?
+  telnyxId       String?
   errorCode      String?
   createdAt      DateTime @default(now())
 
@@ -145,7 +145,7 @@ model ContactStatusEvent {
 
   @@index([organizationId])
   @@index([contactId])
-  @@index([twilioSid])
+  @@index([telnyxId])
   @@index([createdAt])
 }
 
@@ -170,7 +170,7 @@ model Message {
   body           String
   type           String   @default("sms")
   status         String?
-  twilioSid      String?  @unique
+  telnyxId       String?  @unique
   fromNumber     String
   toNumber       String
   mediaUrl       String?
@@ -184,7 +184,7 @@ model Message {
   conversation Conversation @relation(fields: [conversationId], references: [id])
 
   @@index([conversationId])
-  @@index([twilioSid])
+  @@index([telnyxId])
   @@index([createdAt])
 }
 

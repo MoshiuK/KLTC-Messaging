@@ -53,7 +53,7 @@ export interface ContactStatusEvent {
   eventType: string;
   source: string;
   detail: string | null;
-  twilioSid: string | null;
+  telnyxId: string | null;
   errorCode: string | null;
   createdAt: string;
   contact: { id: string; fullName: string; phoneNumber: string };
@@ -65,7 +65,7 @@ export interface GroupSendResult {
   phoneNumber: string;
   status: "sent" | "skipped" | "failed";
   reason?: string;
-  twilioSid?: string;
+  telnyxId?: string;
 }
 
 export interface GroupSendResponse {
