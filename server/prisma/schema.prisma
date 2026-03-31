@@ -82,6 +82,7 @@ model Contact {
   fullName           String
   phoneNumber        String
   email              String?
+  birthday           String?
   isActive           Boolean  @default(true)
   isOptedOut         Boolean  @default(false)
   isBlockedSuspected Boolean  @default(false)
@@ -172,6 +173,7 @@ model Message {
   twilioSid      String?  @unique
   fromNumber     String
   toNumber       String
+  mediaUrl       String?
   errorCode      String?
   errorMessage   String?
   callDuration   Int?

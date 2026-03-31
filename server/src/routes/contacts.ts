@@ -8,6 +8,47 @@ const router = Router();
 // All routes require auth
 router.use(requireAuth);
 
+// GET /api/contacts/birthdays — get contacts with birthdays today or upcoming
+router.get("/birthdays", async (req: Request, res: Response) => {
+  try {
+    const orgId = req.user!.organizationId;
+    const today = new Date();
+    const monthDay = `${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+
+    // Get all contacts with birthdays set
+    const contacts = await prisma.contact.findMany({
+      where: {
+        organizationId: orgId,
+        isActive: true,
+        birthday: { not: null },
+      },
+      orderBy: { birthday: "asc" },
+    });
+
+    // Filter for today's birthdays and upcoming (next 30 days)
+    const todayBirthdays = contacts.filter((c) => {
+      if (!c.birthday) return false;
+      return c.birthday.slice(5) === monthDay;
+    });
+
+    const upcoming = contacts.filter((c) => {
+      if (!c.birthday) return false;
+      const bday = c.birthday.slice(5); // MM-DD
+      if (bday === monthDay) return false; // exclude today
+      // Check if within next 30 days
+      const bdayDate = new Date(today.getFullYear(), parseInt(bday.split("-")[0]) - 1, parseInt(bday.split("-")[1]));
+      if (bdayDate < today) bdayDate.setFullYear(bdayDate.getFullYear() + 1);
+      const diff = (bdayDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
+      return diff > 0 && diff <= 30;
+    });
+
+    res.json({ today: todayBirthdays, upcoming });
+  } catch (err) {
+    console.error("Birthday lookup error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // GET /api/contacts
 router.get("/", async (req: Request, res: Response) => {
   try {
@@ -70,6 +111,7 @@ router.post("/", async (req: Request, res: Response) => {
         fullName,
         phoneNumber: data.phoneNumber,
         email: data.email || null,
+        birthday: data.birthday || null,
       },
     });
 
@@ -110,6 +152,7 @@ router.patch("/:id", async (req: Request, res: Response) => {
         ...data,
         fullName,
         email: data.email !== undefined ? data.email || null : undefined,
+        birthday: data.birthday !== undefined ? data.birthday || null : undefined,
       },
     });
 

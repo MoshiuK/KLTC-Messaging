@@ -29,8 +29,10 @@ router.post("/send", requireAuth, async (req: Request, res: Response) => {
     const orgId = req.user!.organizationId;
     const data = directSmsSchema.parse(req.body);
 
-    // Send SMS first
-    const result = await sendSms(orgId, data.to, data.body);
+    // Send SMS/MMS
+    const result = await sendSms(orgId, data.to, data.body, {
+      mediaUrl: data.mediaUrl,
+    });
 
     // Store message in a transaction (conversation + message atomically)
     const message = await prisma.$transaction(async (tx) => {
@@ -49,6 +51,7 @@ router.post("/send", requireAuth, async (req: Request, res: Response) => {
           twilioSid: result.twilioSid || null,
           fromNumber: "org",
           toNumber: data.to,
+          mediaUrl: data.mediaUrl || null,
           errorCode: result.errorCode || null,
           errorMessage: result.error || null,
         },
@@ -121,7 +124,9 @@ router.post("/send-group", requireAuth, async (req: Request, res: Response) => {
     // Send in batches with concurrency limit
     const sendResults = await processBatch(toSend, BATCH_CONCURRENCY, async (member) => {
       const contact = member.contact;
-      const sendResult = await sendSms(orgId, contact.phoneNumber, data.body);
+      const sendResult = await sendSms(orgId, contact.phoneNumber, data.body, {
+        mediaUrl: data.mediaUrl,
+      });
 
       // Store in conversation history atomically
       await prisma.$transaction(async (tx) => {
@@ -145,6 +150,7 @@ router.post("/send-group", requireAuth, async (req: Request, res: Response) => {
             twilioSid: sendResult.twilioSid || null,
             fromNumber: "org",
             toNumber: contact.phoneNumber,
+            mediaUrl: data.mediaUrl || null,
             errorCode: sendResult.errorCode || null,
             errorMessage: sendResult.error || null,
           },
@@ -174,6 +180,114 @@ router.post("/send-group", requireAuth, async (req: Request, res: Response) => {
       return;
     }
     console.error("Group send error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// POST /api/sms/send-birthday — send birthday announcement to a group (everyone gets the message)
+router.post("/send-birthday", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const orgId = req.user!.organizationId;
+    const { groupId, body, contactName, mediaUrl } = req.body;
+
+    if (!groupId || !body) {
+      res.status(400).json({ error: "groupId and body are required" });
+      return;
+    }
+
+    // Verify group belongs to org
+    const group = await prisma.contactGroup.findFirst({
+      where: { id: groupId, organizationId: orgId },
+      include: {
+        members: {
+          include: { contact: true },
+        },
+      },
+    });
+
+    if (!group) {
+      res.status(404).json({ error: "Group not found" });
+      return;
+    }
+
+    type SendResultItem = {
+      contactId: string;
+      contactName: string;
+      phoneNumber: string;
+      status: "sent" | "skipped" | "failed";
+      reason?: string;
+      twilioSid?: string;
+    };
+
+    const skipped: SendResultItem[] = [];
+    const toSend: typeof group.members = [];
+
+    for (const member of group.members) {
+      const contact = member.contact;
+      if (!contact.isActive) {
+        skipped.push({ contactId: contact.id, contactName: contact.fullName, phoneNumber: contact.phoneNumber, status: "skipped", reason: "inactive" });
+      } else if (contact.isOptedOut) {
+        skipped.push({ contactId: contact.id, contactName: contact.fullName, phoneNumber: contact.phoneNumber, status: "skipped", reason: "opted_out" });
+      } else if (contact.isBlockedSuspected) {
+        skipped.push({ contactId: contact.id, contactName: contact.fullName, phoneNumber: contact.phoneNumber, status: "skipped", reason: "blocked_suspected" });
+      } else {
+        toSend.push(member);
+      }
+    }
+
+    const sendResults = await processBatch(toSend, BATCH_CONCURRENCY, async (member) => {
+      const contact = member.contact;
+      const sendResult = await sendSms(orgId, contact.phoneNumber, body, {
+        mediaUrl: mediaUrl || undefined,
+      });
+
+      await prisma.$transaction(async (tx) => {
+        const conversation = await tx.conversation.upsert({
+          where: {
+            organizationId_phoneNumber: {
+              organizationId: orgId,
+              phoneNumber: contact.phoneNumber,
+            },
+          },
+          create: { organizationId: orgId, phoneNumber: contact.phoneNumber },
+          update: {},
+        });
+
+        await tx.message.create({
+          data: {
+            conversationId: conversation.id,
+            direction: "outbound",
+            body,
+            status: sendResult.success ? "queued" : "failed",
+            twilioSid: sendResult.twilioSid || null,
+            fromNumber: "org",
+            toNumber: contact.phoneNumber,
+            mediaUrl: mediaUrl || null,
+            errorCode: sendResult.errorCode || null,
+            errorMessage: sendResult.error || null,
+          },
+        });
+      });
+
+      const item: SendResultItem = sendResult.success
+        ? { contactId: contact.id, contactName: contact.fullName, phoneNumber: contact.phoneNumber, status: "sent", twilioSid: sendResult.twilioSid }
+        : { contactId: contact.id, contactName: contact.fullName, phoneNumber: contact.phoneNumber, status: "failed", reason: sendResult.error };
+
+      return item;
+    });
+
+    const results = [...skipped, ...sendResults];
+
+    const summary = {
+      total: results.length,
+      sent: results.filter((r) => r.status === "sent").length,
+      skipped: results.filter((r) => r.status === "skipped").length,
+      failed: results.filter((r) => r.status === "failed").length,
+    };
+
+    res.json({ summary, results });
+  } catch (err) {
+    console.error("Birthday send error:", err);
     res.status(500).json({ error: "Internal server error" });
   }
 });

@@ -73,7 +73,7 @@ export async function sendSms(
   organizationId: string,
   to: string,
   body: string,
-  statusCallbackUrl?: string
+  options?: { statusCallbackUrl?: string; mediaUrl?: string }
 ): Promise<SendResult> {
   const twilioSetup = await getTwilioClient(organizationId);
 
@@ -82,12 +82,21 @@ export async function sendSms(
   }
 
   try {
-    const message = await twilioSetup.client.messages.create({
+    const createParams: Record<string, unknown> = {
       to,
       from: twilioSetup.phoneNumber,
       body,
-      ...(statusCallbackUrl ? { statusCallback: statusCallbackUrl } : {}),
-    });
+    };
+
+    if (options?.statusCallbackUrl) {
+      createParams.statusCallback = options.statusCallbackUrl;
+    }
+
+    if (options?.mediaUrl) {
+      createParams.mediaUrl = [options.mediaUrl];
+    }
+
+    const message = await twilioSetup.client.messages.create(createParams as any);
 
     return { success: true, twilioSid: message.sid };
   } catch (err: unknown) {

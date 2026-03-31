@@ -6,6 +6,7 @@ export default function GroupMessage() {
   const [groups, setGroups] = useState<ContactGroup[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState("");
   const [body, setBody] = useState("");
+  const [mediaUrl, setMediaUrl] = useState("");
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<GroupSendResponse | null>(null);
   const [error, setError] = useState("");
@@ -27,9 +28,10 @@ export default function GroupMessage() {
     setResult(null);
     setSending(true);
     try {
-      const res = await api.sendGroup(selectedGroupId, body);
+      const res = await api.sendGroup(selectedGroupId, body, mediaUrl || undefined);
       setResult(res);
       setBody("");
+      setMediaUrl("");
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -78,6 +80,28 @@ export default function GroupMessage() {
             style={{ ...inputStyle, resize: "vertical" }}
           />
           <div style={{ textAlign: "right", fontSize: 12, color: "#999" }}>{body.length}/1600</div>
+        </div>
+
+        <div style={{ marginBottom: 12 }}>
+          <label style={labelStyle}>Media URL (optional — JPG, PNG, or Video)</label>
+          <input
+            value={mediaUrl}
+            onChange={(e) => setMediaUrl(e.target.value)}
+            placeholder="https://example.com/image.jpg"
+            style={inputStyle}
+          />
+          <div style={{ fontSize: 11, color: "#999", marginTop: 4 }}>
+            Paste a public URL to a JPG, PNG, GIF, or MP4 file to send as MMS.
+          </div>
+          {mediaUrl && (
+            <div style={{ marginTop: 8 }}>
+              {/\.(jpg|jpeg|png|gif)$/i.test(mediaUrl) ? (
+                <img src={mediaUrl} alt="Preview" style={{ maxHeight: 100, maxWidth: 200, borderRadius: 4, border: "1px solid #ddd" }} onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+              ) : /\.(mp4|mov)$/i.test(mediaUrl) ? (
+                <video src={mediaUrl} style={{ maxHeight: 100, maxWidth: 200, borderRadius: 4 }} controls />
+              ) : null}
+            </div>
+          )}
         </div>
 
         <button type="submit" disabled={sending || !selectedGroupId || !body.trim()} style={{ ...btnPrimary, opacity: sending ? 0.7 : 1 }}>

@@ -150,15 +150,24 @@ export const api = {
   removeGroupMember: (groupId: string, contactId: string) =>
     request<any>(`/groups/${encodeURIComponent(groupId)}/members/${encodeURIComponent(contactId)}`, { method: "DELETE" }, 0),
 
-  // SMS
-  sendDirect: (to: string, body: string) =>
-    request<any>("/sms/send", { method: "POST", body: JSON.stringify({ to, body }) }, 0),
+  // SMS / MMS
+  sendDirect: (to: string, body: string, mediaUrl?: string) =>
+    request<any>("/sms/send", { method: "POST", body: JSON.stringify({ to, body, mediaUrl }) }, 0),
 
-  sendGroup: (groupId: string, body: string) =>
+  sendGroup: (groupId: string, body: string, mediaUrl?: string) =>
     request<any>("/sms/send-group", {
       method: "POST",
-      body: JSON.stringify({ groupId, body }),
+      body: JSON.stringify({ groupId, body, mediaUrl }),
     }, 0),
+
+  sendBirthday: (groupId: string, body: string, contactName: string, mediaUrl?: string) =>
+    request<any>("/sms/send-birthday", {
+      method: "POST",
+      body: JSON.stringify({ groupId, body, contactName, mediaUrl }),
+    }, 0),
+
+  // Birthdays
+  getBirthdays: () => request<any>("/contacts/birthdays"),
 
   // Notifications
   getNotifications: (params?: Record<string, string>) => {
@@ -178,6 +187,18 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ groupId, message, voice, language }),
     }, 0),
+
+  // Users (admin)
+  getUsers: () => request<any[]>("/users"),
+
+  createUser: (data: { email: string; password: string; firstName: string; lastName: string; role?: string }) =>
+    request<any>("/users", { method: "POST", body: JSON.stringify(data) }, 0),
+
+  updateUser: (id: string, data: Record<string, unknown>) =>
+    request<any>(`/users/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(data) }, 0),
+
+  deleteUser: (id: string) =>
+    request<any>(`/users/${encodeURIComponent(id)}`, { method: "DELETE" }, 0),
 
   // Branding
   getBranding: () => request<any>("/org/branding"),

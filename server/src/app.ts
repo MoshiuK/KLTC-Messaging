@@ -7,6 +7,7 @@ import groupRoutes from "./routes/groups";
 import smsRoutes from "./routes/sms";
 import voiceRoutes from "./routes/voice";
 import orgRoutes from "./routes/org";
+import userRoutes from "./routes/users";
 import notificationRoutes from "./routes/notifications";
 import { errorHandler } from "./middleware/errorHandler";
 
@@ -65,6 +66,7 @@ app.use("/api/groups", groupRoutes);
 app.use("/api/sms", smsRoutes);
 app.use("/api/voice", voiceRoutes);
 app.use("/api/org", orgRoutes);
+app.use("/api/users", userRoutes);
 app.use("/api/notifications", notificationRoutes);
 
 // Error handler
