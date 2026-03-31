@@ -69,6 +69,18 @@ app.use("/api/org", orgRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/notifications", notificationRoutes);
 
+// Telnyx webhook alias — matches the URL configured in Telnyx portal
+// Routes inbound messages and status updates to the correct handlers
+app.post("/api/webhooks/sms", (req, res, next) => {
+  const eventType = req.body?.data?.event_type || "";
+  if (eventType === "message.received") {
+    req.url = "/inbound";
+  } else {
+    req.url = "/status";
+  }
+  smsRoutes(req, res, next);
+});
+
 // Error handler
 app.use(errorHandler);
 
