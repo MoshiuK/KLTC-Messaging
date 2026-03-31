@@ -16,6 +16,7 @@ export interface Contact {
   fullName: string;
   phoneNumber: string;
   email: string | null;
+  birthday: string | null;
   isActive: boolean;
   isOptedOut: boolean;
   isBlockedSuspected: boolean;
@@ -90,6 +91,16 @@ export interface VoiceCallResult {
 export interface GroupVoiceCallResponse {
   summary: { total: number; called: number; skipped: number; failed: number };
   results: VoiceCallResult[];
+}
+
+// Organization user (admin-managed)
+export interface OrgUser {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: string;
+  createdAt: string;
 }
 
 // Branding types

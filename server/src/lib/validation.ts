@@ -16,6 +16,7 @@ export const contactCreateSchema = z.object({
   lastName: z.string().min(1, "Last name is required").max(100),
   phoneNumber: e164Phone,
   email: emailSchema,
+  birthday: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Birthday must be YYYY-MM-DD format").optional().or(z.literal("")).transform((v) => (v === "" ? undefined : v)),
 });
 
 export const contactUpdateSchema = z.object({
@@ -23,6 +24,7 @@ export const contactUpdateSchema = z.object({
   lastName: z.string().min(1).max(100).optional(),
   phoneNumber: e164Phone.optional(),
   email: emailSchema,
+  birthday: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Birthday must be YYYY-MM-DD format").optional().nullable().or(z.literal("")).transform((v) => (v === "" ? null : v)),
   isActive: z.boolean().optional(),
   isOptedOut: z.boolean().optional(),
   isBlockedSuspected: z.boolean().optional(),
@@ -46,6 +48,7 @@ export const addMembersSchema = z.object({
 export const groupSendSchema = z.object({
   groupId: z.string().min(1, "Group ID is required"),
   body: z.string().min(1, "Message body is required").max(1600),
+  mediaUrl: z.string().url("Must be a valid URL").optional().or(z.literal("")).transform((v) => (v === "" ? undefined : v)),
 });
 
 export const loginSchema = z.object({
@@ -64,6 +67,7 @@ export const registerSchema = z.object({
 export const directSmsSchema = z.object({
   to: e164Phone,
   body: z.string().min(1).max(1600),
+  mediaUrl: z.string().url("Must be a valid URL").optional().or(z.literal("")).transform((v) => (v === "" ? undefined : v)),
 });
 
 export const forgotPasswordSchema = z.object({
@@ -73,6 +77,30 @@ export const forgotPasswordSchema = z.object({
 export const resetPasswordSchema = z.object({
   token: z.string().min(1),
   password: z.string().min(6, "Password must be at least 6 characters"),
+});
+
+// User management schemas (admin)
+export const createUserSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+  firstName: z.string().min(1, "First name is required"),
+  lastName: z.string().min(1, "Last name is required"),
+  role: z.enum(["admin", "member"]).optional().default("member"),
+});
+
+export const updateUserSchema = z.object({
+  firstName: z.string().min(1).optional(),
+  lastName: z.string().min(1).optional(),
+  email: z.string().email().optional(),
+  role: z.enum(["admin", "member"]).optional(),
+});
+
+// Birthday message schemas
+export const birthdaySettingsSchema = z.object({
+  birthdayMessageTemplate: z.string().min(1, "Message template is required").max(1600),
+  birthdayMessageEnabled: z.boolean(),
+  sendToEveryone: z.boolean().default(true),
+  birthdayGroupId: z.string().optional().or(z.literal("")).transform((v) => (v === "" ? undefined : v)),
 });
 
 // Voice call schemas

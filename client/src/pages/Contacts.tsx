@@ -19,7 +19,7 @@ export default function Contacts() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search, 300);
-  const [form, setForm] = useState({ firstName: "", lastName: "", phoneNumber: "", email: "" });
+  const [form, setForm] = useState({ firstName: "", lastName: "", phoneNumber: "", email: "", birthday: "" });
   const [error, setError] = useState("");
   const [formError, setFormError] = useState("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
@@ -42,7 +42,7 @@ export default function Contacts() {
   }, [loadContacts]);
 
   const resetForm = () => {
-    setForm({ firstName: "", lastName: "", phoneNumber: "", email: "" });
+    setForm({ firstName: "", lastName: "", phoneNumber: "", email: "", birthday: "" });
     setEditingId(null);
     setShowForm(false);
     setFormError("");
@@ -79,7 +79,7 @@ export default function Contacts() {
   };
 
   const startEdit = (c: Contact) => {
-    setForm({ firstName: c.firstName, lastName: c.lastName, phoneNumber: c.phoneNumber, email: c.email || "" });
+    setForm({ firstName: c.firstName, lastName: c.lastName, phoneNumber: c.phoneNumber, email: c.email || "", birthday: c.birthday || "" });
     setEditingId(c.id);
     setShowForm(true);
   };
@@ -127,6 +127,10 @@ export default function Contacts() {
               <label style={labelStyle}>Email</label>
               <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} style={inputStyle} />
             </div>
+            <div>
+              <label style={labelStyle}>Birthday</label>
+              <input type="date" value={form.birthday} onChange={(e) => setForm({ ...form, birthday: e.target.value })} style={inputStyle} />
+            </div>
           </div>
           <button type="submit" style={{ ...btnPrimary, marginTop: 12 }}>{editingId ? "Update" : "Create"}</button>
         </form>
@@ -153,6 +157,7 @@ export default function Contacts() {
                 <th style={thStyle}>Name</th>
                 <th style={thStyle}>Phone</th>
                 <th style={thStyle}>Email</th>
+                <th style={thStyle}>Birthday</th>
                 <th style={thStyle}>Status</th>
                 <th style={thStyle}>Actions</th>
               </tr>
@@ -163,6 +168,7 @@ export default function Contacts() {
                   <td style={tdStyle}>{c.fullName}</td>
                   <td style={tdStyle}>{c.phoneNumber}</td>
                   <td style={tdStyle}>{c.email || "-"}</td>
+                  <td style={tdStyle}>{c.birthday || "-"}</td>
                   <td style={tdStyle}>
                     {!c.isActive && <Chip label="Inactive" color="#95a5a6" />}
                     {c.isOptedOut && <Chip label="Opted Out" color="#e67e22" />}

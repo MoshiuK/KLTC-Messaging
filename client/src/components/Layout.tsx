@@ -102,6 +102,9 @@ export default function Layout() {
         <NavItem to="/voice-call" label="Voice Calls" activeBg={activeNavBg} onClick={() => setSidebarOpen(false)} />
         <NavItem to="/notifications" label="Notifications" activeBg={activeNavBg} onClick={() => setSidebarOpen(false)} />
         {user?.role === "admin" && (
+          <NavItem to="/users" label="Users" activeBg={activeNavBg} onClick={() => setSidebarOpen(false)} />
+        )}
+        {user?.role === "admin" && (
           <NavItem to="/settings" label="Settings" activeBg={activeNavBg} onClick={() => setSidebarOpen(false)} />
         )}
 
