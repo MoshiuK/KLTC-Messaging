@@ -22,9 +22,10 @@ model Organization {
   contacts            Contact[]
   contactGroups       ContactGroup[]
   contactStatusEvents ContactStatusEvent[]
-  twilioConfigs       TwilioConfig[]
+  telnyxConfigs       TelnyxConfig[]
   conversations       Conversation[]
   voiceCallTwimls     VoiceCallTwiml[]
+  invites             Invite[]
 }
 
 model User {
@@ -34,6 +35,7 @@ model User {
   passwordHash   String
   firstName      String
   lastName       String
+  phone          String?
   role           String   @default("member")
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
@@ -41,6 +43,9 @@ model User {
   organization    Organization         @relation(fields: [organizationId], references: [id])
   createdGroups   ContactGroup[]
   passwordResets  PasswordResetToken[]
+  sentThreadMessages ThreadMessage[]   @relation("SentThreadMessages")
+  threadMembershipsA Thread[]          @relation("ThreadMemberA")
+  threadMembershipsB Thread[]          @relation("ThreadMemberB")
 
   @@index([organizationId])
 }
@@ -59,12 +64,12 @@ model PasswordResetToken {
   @@index([userId])
 }
 
-model TwilioConfig {
+model TelnyxConfig {
   id             String   @id @default(cuid())
   organizationId String
-  accountSid     String
-  authToken      String
+  apiKey         String
   phoneNumber    String
+  messagingProfileId String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -136,7 +141,7 @@ model ContactStatusEvent {
   eventType      String
   source         String
   detail         String?
-  twilioSid      String?
+  messageSid     String?
   errorCode      String?
   createdAt      DateTime @default(now())
 
@@ -145,7 +150,7 @@ model ContactStatusEvent {
 
   @@index([organizationId])
   @@index([contactId])
-  @@index([twilioSid])
+  @@index([messageSid])
   @@index([createdAt])
 }
 
@@ -170,7 +175,7 @@ model Message {
   body           String
   type           String   @default("sms")
   status         String?
-  twilioSid      String?  @unique
+  messageSid     String?  @unique
   fromNumber     String
   toNumber       String
   mediaUrl       String?
@@ -184,7 +189,7 @@ model Message {
   conversation Conversation @relation(fields: [conversationId], references: [id])
 
   @@index([conversationId])
-  @@index([twilioSid])
+  @@index([messageSid])
   @@index([createdAt])
 }
 
@@ -200,5 +205,50 @@ model VoiceCallTwiml {
 
   organization Organization @relation(fields: [organizationId], references: [id])
 
+  @@index([organizationId])
+}
+
+model Thread {
+  id        String   @id @default(cuid())
+  memberAId String
+  memberBId String
+  createdAt DateTime @default(now())
+
+  memberA  User            @relation("ThreadMemberA", fields: [memberAId], references: [id])
+  memberB  User            @relation("ThreadMemberB", fields: [memberBId], references: [id])
+  messages ThreadMessage[]
+
+  @@unique([memberAId, memberBId])
+  @@index([memberAId])
+  @@index([memberBId])
+}
+
+model ThreadMessage {
+  id           String   @id @default(cuid())
+  threadId     String
+  senderUserId String
+  body         String
+  messageSid   String?
+  createdAt    DateTime @default(now())
+
+  thread Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  sender User   @relation("SentThreadMessages", fields: [senderUserId], references: [id])
+
+  @@index([threadId])
+  @@index([createdAt])
+}
+
+model Invite {
+  id             String   @id @default(cuid())
+  organizationId String
+  groupId        String
+  token          String   @unique
+  createdByUserId String
+  expiresAt      DateTime
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([token])
   @@index([organizationId])
 }

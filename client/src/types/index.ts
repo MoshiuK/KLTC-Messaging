@@ -53,7 +53,7 @@ export interface ContactStatusEvent {
   eventType: string;
   source: string;
   detail: string | null;
-  twilioSid: string | null;
+  messageSid: string | null;
   errorCode: string | null;
   createdAt: string;
   contact: { id: string; fullName: string; phoneNumber: string };
@@ -65,7 +65,7 @@ export interface GroupSendResult {
   phoneNumber: string;
   status: "sent" | "skipped" | "failed";
   reason?: string;
-  twilioSid?: string;
+  messageSid?: string;
 }
 
 export interface GroupSendResponse {
@@ -110,4 +110,29 @@ export interface BrandingConfig {
   primaryColor: string;
   secondaryColor: string;
   accentColor: string;
+}
+
+// Thread types (DM)
+export interface ThreadSummary {
+  id: string;
+  peer: { id: string; firstName: string; lastName: string; email: string };
+  lastMessage: { body: string; createdAt: string } | null;
+  createdAt: string;
+}
+
+export interface ThreadMessage {
+  id: string;
+  threadId: string;
+  senderUserId: string;
+  body: string;
+  createdAt: string;
+  sender: { id: string; firstName: string; lastName: string };
+}
+
+// Telnyx config
+export interface TelnyxConfigInfo {
+  configured: boolean;
+  phoneNumber?: string;
+  apiKeyMasked?: string;
+  messagingProfileId?: string | null;
 }

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "../components/AuthContext";
 import { useBranding } from "../components/BrandingContext";
 import { api } from "../api/client";
-import { BrandingConfig } from "../types";
+import { BrandingConfig, TelnyxConfigInfo } from "../types";
 
 export default function Settings() {
   const { user } = useAuth();
@@ -12,9 +12,22 @@ export default function Settings() {
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
 
+  // Telnyx config state
+  const [telnyxInfo, setTelnyxInfo] = useState<TelnyxConfigInfo | null>(null);
+  const [telnyxForm, setTelnyxForm] = useState({ apiKey: "", phoneNumber: "", messagingProfileId: "" });
+  const [telnyxSaving, setTelnyxSaving] = useState(false);
+  const [telnyxSuccess, setTelnyxSuccess] = useState("");
+  const [telnyxError, setTelnyxError] = useState("");
+
   useEffect(() => {
     setForm({ ...branding });
   }, [branding]);
+
+  useEffect(() => {
+    if (user?.role === "admin") {
+      api.getTelnyxConfig().then(setTelnyxInfo).catch(() => {});
+    }
+  }, [user]);
 
   if (user?.role !== "admin") {
     return (
@@ -47,12 +60,95 @@ export default function Settings() {
     }
   };
 
+  const handleTelnyxSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!telnyxForm.apiKey || !telnyxForm.phoneNumber) {
+      setTelnyxError("API Key and Phone Number are required");
+      return;
+    }
+    setTelnyxSaving(true);
+    setTelnyxError("");
+    setTelnyxSuccess("");
+    try {
+      const result = await api.saveTelnyxConfig({
+        apiKey: telnyxForm.apiKey,
+        phoneNumber: telnyxForm.phoneNumber,
+        messagingProfileId: telnyxForm.messagingProfileId || undefined,
+      });
+      setTelnyxInfo(result);
+      setTelnyxForm({ apiKey: "", phoneNumber: "", messagingProfileId: "" });
+      setTelnyxSuccess("Telnyx configuration saved!");
+    } catch (err: any) {
+      setTelnyxError(err.message || "Failed to save Telnyx config");
+    } finally {
+      setTelnyxSaving(false);
+    }
+  };
+
   const set = (key: keyof BrandingConfig, val: string | null) =>
     setForm((f) => ({ ...f, [key]: val }));
 
   return (
     <div>
       <h1>Settings</h1>
+
+      {/* Telnyx Config Section */}
+      <div style={{ ...formCard, marginBottom: 24 }}>
+        <h3 style={{ marginTop: 0 }}>Telnyx Configuration</h3>
+        {telnyxInfo?.configured ? (
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ ...statusBadge, background: "#eafff0", color: "#27ae60" }}>Connected</div>
+            <p style={{ fontSize: 13, color: "#666", margin: "8px 0" }}>
+              Phone: <strong>{telnyxInfo.phoneNumber}</strong><br />
+              API Key: <code>{telnyxInfo.apiKeyMasked}</code><br />
+              {telnyxInfo.messagingProfileId && <>Messaging Profile: <code>{telnyxInfo.messagingProfileId}</code></>}
+            </p>
+            <p style={{ fontSize: 12, color: "#999" }}>Enter new values below to update.</p>
+          </div>
+        ) : (
+          <div style={{ ...statusBadge, background: "#ffeaea", color: "#e74c3c", marginBottom: 12 }}>
+            Not configured
+          </div>
+        )}
+
+        {telnyxError && <div style={errorBox}>{telnyxError}</div>}
+        {telnyxSuccess && <div style={successBox}>{telnyxSuccess}</div>}
+
+        <form onSubmit={handleTelnyxSave}>
+          <div style={{ marginBottom: 12 }}>
+            <label style={labelStyle}>Telnyx API Key *</label>
+            <input
+              type="password"
+              value={telnyxForm.apiKey}
+              onChange={(e) => setTelnyxForm((f) => ({ ...f, apiKey: e.target.value }))}
+              style={inputStyle}
+              placeholder="KEY..."
+            />
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <label style={labelStyle}>Telnyx Phone Number * (E.164 format)</label>
+            <input
+              value={telnyxForm.phoneNumber}
+              onChange={(e) => setTelnyxForm((f) => ({ ...f, phoneNumber: e.target.value }))}
+              style={inputStyle}
+              placeholder="+15551234567"
+            />
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <label style={labelStyle}>Messaging Profile ID (optional)</label>
+            <input
+              value={telnyxForm.messagingProfileId}
+              onChange={(e) => setTelnyxForm((f) => ({ ...f, messagingProfileId: e.target.value }))}
+              style={inputStyle}
+              placeholder="(optional)"
+            />
+          </div>
+          <button type="submit" disabled={telnyxSaving} style={{ ...btnPrimary, opacity: telnyxSaving ? 0.7 : 1 }}>
+            {telnyxSaving ? "Saving..." : "Save Telnyx Config"}
+          </button>
+        </form>
+      </div>
+
       <p style={{ color: "#666" }}>Customize your organization's branding.</p>
 
       {error && <div style={errorBox}>{error}</div>}
@@ -69,7 +165,7 @@ export default function Settings() {
               value={form.appName}
               onChange={(e) => set("appName", e.target.value)}
               style={inputStyle}
-              placeholder="KLTC Messaging"
+              placeholder="KLT Connect"
             />
           </div>
 
@@ -153,13 +249,8 @@ export default function Settings() {
             type="submit"
             disabled={saving}
             style={{
-              padding: "10px 20px",
+              ...btnPrimary,
               background: form.primaryColor,
-              color: "#fff",
-              border: "none",
-              borderRadius: 4,
-              cursor: "pointer",
-              fontSize: 14,
               opacity: saving ? 0.7 : 1,
             }}
           >
@@ -215,8 +306,10 @@ export default function Settings() {
   );
 }
 
+const btnPrimary: React.CSSProperties = { padding: "10px 20px", background: "#1a1a2e", color: "#fff", border: "none", borderRadius: 4, cursor: "pointer", fontSize: 14 };
 const errorBox: React.CSSProperties = { color: "#e74c3c", marginBottom: 12, padding: 8, background: "#ffeaea", borderRadius: 4 };
 const successBox: React.CSSProperties = { color: "#27ae60", marginBottom: 12, padding: 8, background: "#eafff0", borderRadius: 4 };
+const statusBadge: React.CSSProperties = { display: "inline-block", padding: "4px 12px", borderRadius: 4, fontSize: 13, fontWeight: 600 };
 const formCard: React.CSSProperties = { background: "#fff", padding: 20, borderRadius: 8, boxShadow: "0 1px 3px rgba(0,0,0,0.1)" };
 const labelStyle: React.CSSProperties = { display: "block", marginBottom: 4, fontSize: 13, fontWeight: 500 };
 const inputStyle: React.CSSProperties = { width: "100%", padding: "8px 12px", border: "1px solid #ddd", borderRadius: 4, fontSize: 14, boxSizing: "border-box" };

@@ -9,6 +9,8 @@ import voiceRoutes from "./routes/voice";
 import orgRoutes from "./routes/org";
 import userRoutes from "./routes/users";
 import notificationRoutes from "./routes/notifications";
+import threadRoutes from "./routes/threads";
+import inviteRoutes from "./routes/invites";
 import { errorHandler } from "./middleware/errorHandler";
 
 const app = express();
@@ -68,6 +70,9 @@ app.use("/api/voice", voiceRoutes);
 app.use("/api/org", orgRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/threads", threadRoutes);
+app.use("/api/groups", inviteRoutes);  // invite routes: POST /api/groups/:id/invite
+app.use("/api/invites", inviteRoutes); // join route: POST /api/invites/:token/join
 
 // Error handler
 app.use(errorHandler);

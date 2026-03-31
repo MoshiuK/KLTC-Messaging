@@ -16,6 +16,7 @@ import VoiceCall from "./pages/VoiceCall";
 import Notifications from "./pages/Notifications";
 import Settings from "./pages/Settings";
 import UserManagement from "./pages/UserManagement";
+import Threads from "./pages/Threads";
 
 function AppRoutes() {
   const { user, loading } = useAuth();
@@ -44,6 +45,7 @@ function AppRoutes() {
         <Route path="/group-message" element={<GroupMessage />} />
         <Route path="/voice-call" element={<VoiceCall />} />
         <Route path="/notifications" element={<Notifications />} />
+        <Route path="/threads" element={<Threads />} />
         <Route path="/users" element={<UserManagement />} />
         <Route path="/settings" element={<Settings />} />
       </Route>

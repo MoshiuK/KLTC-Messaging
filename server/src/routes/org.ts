@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import { prisma } from "../lib/prisma";
 import { requireAuth, requireAdmin } from "../middleware/auth";
 import { updateBrandingSchema } from "../lib/validation";
+import { clearTelnyxConfigCache } from "../services/telnyx";
 
 const router = Router();
 
@@ -71,6 +72,68 @@ router.patch("/branding", requireAuth, requireAdmin, async (req: Request, res: R
     }
     console.error("Update branding error:", err);
     res.status(500).json({ error: "Failed to update branding" });
+  }
+});
+
+// GET /api/org/telnyx — get Telnyx config (admin only, masked)
+router.get("/telnyx", requireAuth, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const orgId = req.user!.organizationId;
+    const config = await prisma.telnyxConfig.findFirst({
+      where: { organizationId: orgId },
+    });
+
+    if (!config) {
+      res.json({ configured: false });
+      return;
+    }
+
+    res.json({
+      configured: true,
+      phoneNumber: config.phoneNumber,
+      apiKeyMasked: config.apiKey.slice(0, 8) + "..." + config.apiKey.slice(-4),
+      messagingProfileId: config.messagingProfileId || null,
+    });
+  } catch (err) {
+    console.error("Get Telnyx config error:", err);
+    res.status(500).json({ error: "Failed to fetch Telnyx config" });
+  }
+});
+
+// PUT /api/org/telnyx — set Telnyx config (admin only)
+router.put("/telnyx", requireAuth, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const orgId = req.user!.organizationId;
+    const { apiKey, phoneNumber, messagingProfileId } = req.body;
+
+    if (!apiKey || !phoneNumber) {
+      res.status(400).json({ error: "apiKey and phoneNumber are required" });
+      return;
+    }
+
+    // Upsert: delete existing and create new
+    await prisma.telnyxConfig.deleteMany({ where: { organizationId: orgId } });
+
+    const config = await prisma.telnyxConfig.create({
+      data: {
+        organizationId: orgId,
+        apiKey,
+        phoneNumber,
+        messagingProfileId: messagingProfileId || null,
+      },
+    });
+
+    clearTelnyxConfigCache(orgId);
+
+    res.json({
+      configured: true,
+      phoneNumber: config.phoneNumber,
+      apiKeyMasked: config.apiKey.slice(0, 8) + "..." + config.apiKey.slice(-4),
+      messagingProfileId: config.messagingProfileId || null,
+    });
+  } catch (err) {
+    console.error("Set Telnyx config error:", err);
+    res.status(500).json({ error: "Failed to save Telnyx config" });
   }
 });
 

@@ -2,7 +2,7 @@ import { Router, Request, Response } from "express";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/auth";
 import { voiceCallSchema, groupVoiceCallSchema } from "../lib/validation";
-import { makeVoiceCall, generateTwimlSay } from "../services/twilio";
+import { makeVoiceCall, generateTwimlSay } from "../services/telnyx";
 
 const router = Router();
 
@@ -61,7 +61,7 @@ router.post("/call", requireAuth, async (req: Request, res: Response) => {
           body: data.message,
           type: "voice",
           status: result.success ? (result.status || "queued") : "failed",
-          twilioSid: result.callSid || null,
+          messageSid: result.callSid || null,
           fromNumber: "org",
           toNumber: data.to,
           callStatus: result.status || null,
@@ -93,7 +93,6 @@ router.post("/call-group", requireAuth, async (req: Request, res: Response) => {
     const orgId = req.user!.organizationId;
     const data = groupVoiceCallSchema.parse(req.body);
 
-    // Verify group belongs to org
     const group = await prisma.contactGroup.findFirst({
       where: { id: data.groupId, organizationId: orgId },
       include: {
@@ -108,7 +107,6 @@ router.post("/call-group", requireAuth, async (req: Request, res: Response) => {
       return;
     }
 
-    // Create shared TwiML record for this batch
     const twiml = await prisma.voiceCallTwiml.create({
       data: {
         organizationId: orgId,
@@ -132,7 +130,6 @@ router.post("/call-group", requireAuth, async (req: Request, res: Response) => {
       callSid?: string;
     };
 
-    // Separate skippable from callable contacts
     const skipped: CallResultItem[] = [];
     const toCall: typeof group.members = [];
 
@@ -149,12 +146,10 @@ router.post("/call-group", requireAuth, async (req: Request, res: Response) => {
       }
     }
 
-    // Process calls in batches with concurrency limit
     const callResults = await processBatch(toCall, BATCH_CONCURRENCY, async (member) => {
       const contact = member.contact;
       const callResult = await makeVoiceCall(orgId, contact.phoneNumber, twimlUrl, statusUrl);
 
-      // Store in conversation history atomically
       await prisma.$transaction(async (tx) => {
         const conversation = await tx.conversation.upsert({
           where: {
@@ -174,7 +169,7 @@ router.post("/call-group", requireAuth, async (req: Request, res: Response) => {
             body: data.message,
             type: "voice",
             status: callResult.success ? (callResult.status || "queued") : "failed",
-            twilioSid: callResult.callSid || null,
+            messageSid: callResult.callSid || null,
             fromNumber: "org",
             toNumber: contact.phoneNumber,
             callStatus: callResult.status || null,
@@ -211,7 +206,7 @@ router.post("/call-group", requireAuth, async (req: Request, res: Response) => {
   }
 });
 
-// POST /api/voice/twiml/:twimlId — Twilio webhook to get TwiML (no auth)
+// POST /api/voice/twiml/:twimlId — webhook to get TwiML (no auth)
 router.post("/twiml/:twimlId", async (req: Request, res: Response) => {
   try {
     const { twimlId } = req.params;
@@ -231,7 +226,6 @@ router.post("/twiml/:twimlId", async (req: Request, res: Response) => {
       return;
     }
 
-    // Mark as used (best-effort, don't fail the call if this fails)
     try {
       await prisma.voiceCallTwiml.update({
         where: { id: twimlId },
@@ -260,38 +254,38 @@ router.post("/twiml/:twimlId", async (req: Request, res: Response) => {
   }
 });
 
-// POST /api/voice/status — Twilio call status callback (no auth)
+// POST /api/voice/status — Telnyx call status callback (no auth)
 router.post("/status", async (req: Request, res: Response) => {
   try {
-    const { CallSid, CallStatus, CallDuration, ErrorCode } = req.body;
+    const event = req.body?.data;
+    const payload = event?.payload;
+    const callControlId = payload?.call_control_id || payload?.call_leg_id;
+    const callState = payload?.state;
 
-    if (!CallSid) {
-      res.status(200).send("OK");
+    if (!callControlId) {
+      res.status(200).json({ status: "ok" });
       return;
     }
 
-    // Find the message by twilioSid
     const message = await prisma.message.findUnique({
-      where: { twilioSid: CallSid },
+      where: { messageSid: callControlId },
     });
 
     if (message) {
       await prisma.message.update({
         where: { id: message.id },
         data: {
-          status: CallStatus || message.status,
-          callStatus: CallStatus || message.callStatus,
-          callDuration: CallDuration ? parseInt(CallDuration, 10) : message.callDuration,
-          errorCode: ErrorCode || message.errorCode,
+          status: callState || message.status,
+          callStatus: callState || message.callStatus,
+          callDuration: payload?.duration_secs ? parseInt(payload.duration_secs, 10) : message.callDuration,
         },
       });
     }
 
-    res.status(200).send("OK");
+    res.status(200).json({ status: "ok" });
   } catch (err) {
     console.error("Voice status callback error:", err);
-    // Never crash the webhook
-    res.status(200).send("OK");
+    res.status(200).json({ status: "error" });
   }
 });
 

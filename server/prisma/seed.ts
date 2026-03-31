@@ -4,25 +4,30 @@ import bcrypt from "bcryptjs";
 const prisma = new PrismaClient();
 
 async function main() {
-  // Create a demo organization
+  // Create the KLTC organization
   const org = await prisma.organization.create({
-    data: { name: "KLTC Demo Org" },
+    data: { name: "KLT Connect", appName: "KLT Connect" },
   });
 
-  // Create admin user (password: admin123)
-  const passwordHash = await bcrypt.hash("admin123", 10);
+  // Create admin user
+  const passwordHash = await bcrypt.hash(
+    process.env.ADMIN_PASSWORD || "ChangeMeNow123!",
+    10
+  );
+  const adminEmail = (process.env.ADMIN_EMAIL || "admin@kltconnect.com").toLowerCase();
+
   const admin = await prisma.user.create({
     data: {
       organizationId: org.id,
-      email: "admin@kltc.com",
+      email: adminEmail,
       passwordHash,
-      firstName: "Admin",
-      lastName: "User",
+      firstName: "Church",
+      lastName: "Admin",
       role: "admin",
     },
   });
 
-  // Create some contacts
+  // Create some sample contacts
   const contacts = await Promise.all([
     prisma.contact.create({
       data: {
@@ -54,36 +59,14 @@ async function main() {
         email: "bob@example.com",
       },
     }),
-    prisma.contact.create({
-      data: {
-        organizationId: org.id,
-        firstName: "Alice",
-        lastName: "Williams",
-        fullName: "Alice Williams",
-        phoneNumber: "+15551001004",
-        email: "alice@example.com",
-        isOptedOut: true,
-      },
-    }),
-    prisma.contact.create({
-      data: {
-        organizationId: org.id,
-        firstName: "Charlie",
-        lastName: "Brown",
-        fullName: "Charlie Brown",
-        phoneNumber: "+15551001005",
-        isBlockedSuspected: true,
-        blockedReason: "Error code 30007: Message filtered by carrier",
-      },
-    }),
   ]);
 
   // Create a group
   const group = await prisma.contactGroup.create({
     data: {
       organizationId: org.id,
-      name: "All Staff",
-      description: "All staff members",
+      name: "Whole Church",
+      description: "All church members",
       createdByUserId: admin.id,
     },
   });
@@ -97,30 +80,8 @@ async function main() {
     )
   );
 
-  // Create some status events
-  await prisma.contactStatusEvent.create({
-    data: {
-      organizationId: org.id,
-      contactId: contacts[3].id,
-      eventType: "opted_out",
-      source: "inbound_keyword",
-      detail: "Keyword: STOP",
-    },
-  });
-
-  await prisma.contactStatusEvent.create({
-    data: {
-      organizationId: org.id,
-      contactId: contacts[4].id,
-      eventType: "blocked_suspected",
-      source: "status_callback",
-      detail: "Status: undelivered",
-      errorCode: "30007",
-    },
-  });
-
   console.log("Seed complete!");
-  console.log(`  Admin login: admin@kltc.com / admin123`);
+  console.log(`  Admin login: ${adminEmail} / ${process.env.ADMIN_PASSWORD || "ChangeMeNow123!"}`);
   console.log(`  Organization: ${org.name}`);
   console.log(`  Contacts: ${contacts.length}`);
   console.log(`  Group: ${group.name} (${contacts.length} members)`);

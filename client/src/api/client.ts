@@ -208,4 +208,32 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify(data),
     }, 0),
+
+  // Telnyx config
+  getTelnyxConfig: () => request<any>("/org/telnyx"),
+
+  saveTelnyxConfig: (data: { apiKey: string; phoneNumber: string; messagingProfileId?: string }) =>
+    request<any>("/org/telnyx", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }, 0),
+
+  // Threads (DM)
+  getThreads: () => request<any[]>("/threads"),
+
+  createThread: (peerUserId: string) =>
+    request<any>("/threads", { method: "POST", body: JSON.stringify({ peerUserId }) }, 0),
+
+  getThreadMessages: (threadId: string) =>
+    request<any[]>(`/threads/${encodeURIComponent(threadId)}/messages`),
+
+  sendThreadMessage: (threadId: string, body: string) =>
+    request<any>(`/threads/${encodeURIComponent(threadId)}/messages`, {
+      method: "POST",
+      body: JSON.stringify({ body }),
+    }, 0),
+
+  // Invites
+  createInvite: (groupId: string) =>
+    request<any>(`/groups/${encodeURIComponent(groupId)}/invite`, { method: "POST" }, 0),
 };
