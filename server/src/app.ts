@@ -50,7 +50,15 @@ const apiLimiter = rateLimit({
 
 // Health check (no rate limit)
 app.get("/api/health", (_req, res) => {
-  res.json({ status: "ok", timestamp: new Date().toISOString() });
+  res.json({
+    status: "ok",
+    timestamp: new Date().toISOString(),
+    telnyxConfigured: !!(process.env.TELNYX_API_KEY && process.env.TELNYX_PHONE_NUMBER),
+    telnyxPhone: process.env.TELNYX_PHONE_NUMBER ? "set" : "missing",
+    telnyxApiKey: process.env.TELNYX_API_KEY ? "set" : "missing",
+    telnyxProfileId: process.env.TELNYX_MESSAGING_PROFILE_ID ? "set" : "missing",
+    dotenvLoaded: !!process.env.TELNYX_API_KEY,
+  });
 });
 
 // Apply rate limiters

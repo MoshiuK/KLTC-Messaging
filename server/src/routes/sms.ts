@@ -70,7 +70,8 @@ router.post("/send", requireAuth, async (req: Request, res: Response) => {
       return;
     }
     console.error("Send SMS error:", err);
-    res.status(500).json({ error: "Internal server error" });
+    const detail = err instanceof Error ? err.message : "Unknown error";
+    res.status(500).json({ error: "Internal server error", detail });
   }
 });
 
@@ -180,7 +181,8 @@ router.post("/send-group", requireAuth, async (req: Request, res: Response) => {
       return;
     }
     console.error("Group send error:", err);
-    res.status(500).json({ error: "Internal server error" });
+    const message = err instanceof Error ? err.message : "Unknown error";
+    res.status(500).json({ error: "Internal server error", detail: message });
   }
 });
 
@@ -288,7 +290,8 @@ router.post("/send-birthday", requireAuth, async (req: Request, res: Response) =
     res.json({ summary, results });
   } catch (err) {
     console.error("Birthday send error:", err);
-    res.status(500).json({ error: "Internal server error" });
+    const detail = err instanceof Error ? err.message : "Unknown error";
+    res.status(500).json({ error: "Internal server error", detail });
   }
 });
 
