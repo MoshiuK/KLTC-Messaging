@@ -200,6 +200,26 @@ export const api = {
   deleteUser: (id: string) =>
     request<any>(`/users/${encodeURIComponent(id)}`, { method: "DELETE" }, 0),
 
+  // Scheduled Messages
+  getScheduledMessages: (status?: string) => {
+    const qs = status ? `?status=${status}` : "";
+    return request<any[]>(`/scheduled${qs}`);
+  },
+
+  createScheduledMessage: (data: {
+    groupId?: string;
+    contactId?: string;
+    body: string;
+    mediaUrl?: string;
+    scheduledAt: string;
+    recurrence?: string;
+    type?: string;
+  }) =>
+    request<any>("/scheduled", { method: "POST", body: JSON.stringify(data) }, 0),
+
+  cancelScheduledMessage: (id: string) =>
+    request<any>(`/scheduled/${encodeURIComponent(id)}`, { method: "DELETE" }, 0),
+
   // Branding
   getBranding: () => request<any>("/org/branding"),
 

@@ -9,6 +9,7 @@ import voiceRoutes from "./routes/voice";
 import orgRoutes from "./routes/org";
 import userRoutes from "./routes/users";
 import notificationRoutes from "./routes/notifications";
+import scheduledRoutes from "./routes/scheduled";
 import { errorHandler } from "./middleware/errorHandler";
 
 const app = express();
@@ -76,6 +77,7 @@ app.use("/api/voice", voiceRoutes);
 app.use("/api/org", orgRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/scheduled", scheduledRoutes);
 
 // Telnyx webhook alias — matches the URL configured in Telnyx portal
 // Routes inbound messages and status updates to the correct handlers
