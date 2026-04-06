@@ -1,7 +1,7 @@
 import { Router, Request, Response } from "express";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/auth";
-import { sendSms } from "../services/telnyx";
+import { sendSms } from "../services/messaging";
 import { z } from "zod";
 
 const router = Router();
@@ -239,7 +239,7 @@ async function sendGroupScheduled(scheduled: any) {
               direction: "outbound",
               body: scheduled.body,
               status: result.success ? "queued" : "failed",
-              telnyxId: result.telnyxId || null,
+              providerId: result.providerId || null,
               fromNumber: "org",
               toNumber: member.contact.phoneNumber,
               mediaUrl: scheduled.mediaUrl || null,
@@ -285,7 +285,7 @@ async function sendDirectScheduled(scheduled: any) {
         direction: "outbound",
         body: scheduled.body,
         status: result.success ? "queued" : "failed",
-        telnyxId: result.telnyxId || null,
+        providerId: result.providerId || null,
         fromNumber: "org",
         toNumber: contact.phoneNumber,
         mediaUrl: scheduled.mediaUrl || null,

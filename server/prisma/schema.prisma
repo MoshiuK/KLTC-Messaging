@@ -15,6 +15,7 @@ model Organization {
   primaryColor   String?
   secondaryColor String?
   accentColor    String?
+  smsProvider    String   @default("telnyx") // "twilio" or "telnyx"
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -23,6 +24,7 @@ model Organization {
   contactGroups       ContactGroup[]
   contactStatusEvents ContactStatusEvent[]
   telnyxConfigs       TelnyxConfig[]
+  twilioConfigs       TwilioConfig[]
   conversations       Conversation[]
   voiceCallTwimls     VoiceCallTwiml[]
   scheduledMessages   ScheduledMessage[]
@@ -68,6 +70,21 @@ model TelnyxConfig {
   messagingProfileId String?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
+  @@index([phoneNumber])
+}
+
+model TwilioConfig {
+  id             String   @id @default(cuid())
+  organizationId String
+  accountSid     String
+  authToken      String
+  phoneNumber    String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id])
 
@@ -137,7 +154,7 @@ model ContactStatusEvent {
   eventType      String
   source         String
   detail         String?
-  telnyxId       String?
+  providerId     String?
   errorCode      String?
   createdAt      DateTime @default(now())
 
@@ -146,7 +163,7 @@ model ContactStatusEvent {
 
   @@index([organizationId])
   @@index([contactId])
-  @@index([telnyxId])
+  @@index([providerId])
   @@index([createdAt])
 }
 
@@ -171,7 +188,7 @@ model Message {
   body           String
   type           String   @default("sms")
   status         String?
-  telnyxId       String?  @unique
+  providerId     String?  @unique
   fromNumber     String
   toNumber       String
   mediaUrl       String?
@@ -185,7 +202,7 @@ model Message {
   conversation Conversation @relation(fields: [conversationId], references: [id])
 
   @@index([conversationId])
-  @@index([telnyxId])
+  @@index([providerId])
   @@index([createdAt])
 }
 

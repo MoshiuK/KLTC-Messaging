@@ -53,7 +53,7 @@ export interface ContactStatusEvent {
   eventType: string;
   source: string;
   detail: string | null;
-  telnyxId: string | null;
+  providerId: string | null;
   errorCode: string | null;
   createdAt: string;
   contact: { id: string; fullName: string; phoneNumber: string };
@@ -65,7 +65,7 @@ export interface GroupSendResult {
   phoneNumber: string;
   status: "sent" | "skipped" | "failed";
   reason?: string;
-  telnyxId?: string;
+  providerId?: string;
 }
 
 export interface GroupSendResponse {

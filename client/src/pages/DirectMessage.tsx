@@ -159,7 +159,7 @@ export default function DirectMessage() {
                 {result.message?.status}
               </span>
             </p>
-            {result.telnyxId && <p><strong>Telnyx ID:</strong> {result.telnyxId}</p>}
+            {result.providerId && <p><strong>Telnyx ID:</strong> {result.providerId}</p>}
             {result.message?.errorMessage && <p style={{ color: "#e74c3c" }}><strong>Error:</strong> {result.message.errorMessage}</p>}
           </div>
         </div>

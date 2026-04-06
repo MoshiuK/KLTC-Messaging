@@ -20,6 +20,7 @@
     "express-rate-limit": "^8.3.1",
     "jsonwebtoken": "^9.0.2",
     "telnyx": "^6.29.7",
+    "twilio": "^5.13.1",
     "ws": "^8.20.0",
     "zod": "^3.23.0"
   },

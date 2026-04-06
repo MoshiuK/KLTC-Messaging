@@ -2,7 +2,7 @@ import { Router, Request, Response } from "express";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/auth";
 import { voiceCallSchema, groupVoiceCallSchema } from "../lib/validation";
-import { makeVoiceCall, generateTexmlSay } from "../services/telnyx";
+import { makeVoiceCall, generateTwimlSay } from "../services/messaging";
 
 const router = Router();
 
@@ -61,7 +61,7 @@ router.post("/call", requireAuth, async (req: Request, res: Response) => {
           body: data.message,
           type: "voice",
           status: result.success ? (result.status || "queued") : "failed",
-          telnyxId: result.callControlId || null,
+          providerId: result.callId || null,
           fromNumber: "org",
           toNumber: data.to,
           callStatus: result.status || null,
@@ -76,7 +76,7 @@ router.post("/call", requireAuth, async (req: Request, res: Response) => {
       return;
     }
 
-    res.json({ message, callControlId: result.callControlId });
+    res.json({ message, callControlId: result.callId });
   } catch (err) {
     if (err instanceof Error && err.name === "ZodError") {
       res.status(400).json({ error: "Validation error", details: err });
@@ -174,7 +174,7 @@ router.post("/call-group", requireAuth, async (req: Request, res: Response) => {
             body: data.message,
             type: "voice",
             status: callResult.success ? (callResult.status || "queued") : "failed",
-            telnyxId: callResult.callControlId || null,
+            providerId: callResult.callId || null,
             fromNumber: "org",
             toNumber: contact.phoneNumber,
             callStatus: callResult.status || null,
@@ -185,7 +185,7 @@ router.post("/call-group", requireAuth, async (req: Request, res: Response) => {
       });
 
       const item: CallResultItem = callResult.success
-        ? { contactId: contact.id, contactName: contact.fullName, phoneNumber: contact.phoneNumber, status: "called", callControlId: callResult.callControlId }
+        ? { contactId: contact.id, contactName: contact.fullName, phoneNumber: contact.phoneNumber, status: "called", callControlId: callResult.callId }
         : { contactId: contact.id, contactName: contact.fullName, phoneNumber: contact.phoneNumber, status: "failed", reason: callResult.error };
 
       return item;
@@ -242,7 +242,7 @@ router.post("/texml/:texmlId", async (req: Request, res: Response) => {
       console.error("Failed to mark TeXML as used:", texmlId);
     }
 
-    const xml = generateTexmlSay(
+    const xml = generateTwimlSay(
       texmlRecord.messageText,
       texmlRecord.voiceName,
       texmlRecord.voiceLanguage
@@ -297,9 +297,9 @@ router.post("/status", async (req: Request, res: Response) => {
       return;
     }
 
-    // Find the message by telnyxId (call_control_id)
+    // Find the message by providerId (call_control_id)
     const message = await prisma.message.findUnique({
-      where: { telnyxId: callControlId },
+      where: { providerId: callControlId },
     });
 
     if (message) {

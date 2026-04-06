@@ -2,7 +2,7 @@ import { Router, Request, Response } from "express";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/auth";
 import { directSmsSchema, groupSendSchema } from "../lib/validation";
-import { sendSms } from "../services/telnyx";
+import { sendSms } from "../services/messaging";
 
 const router = Router();
 
@@ -85,7 +85,7 @@ router.post("/send", requireAuth, async (req: Request, res: Response) => {
           direction: "outbound",
           body: data.body,
           status: result.success ? "queued" : "failed",
-          telnyxId: result.telnyxId || null,
+          providerId: result.providerId || null,
           fromNumber: "org",
           toNumber: data.to,
           mediaUrl: data.mediaUrl || null,
@@ -100,7 +100,7 @@ router.post("/send", requireAuth, async (req: Request, res: Response) => {
       return;
     }
 
-    res.json({ message, telnyxId: result.telnyxId });
+    res.json({ message, providerId: result.providerId });
   } catch (err) {
     if (err instanceof Error && err.name === "ZodError") {
       res.status(400).json({ error: "Validation error", details: err });
@@ -139,7 +139,7 @@ router.post("/send-group", requireAuth, async (req: Request, res: Response) => {
       phoneNumber: string;
       status: "sent" | "skipped" | "failed";
       reason?: string;
-      telnyxId?: string;
+      providerId?: string;
     };
 
     // Separate skippable from sendable contacts
@@ -185,7 +185,7 @@ router.post("/send-group", requireAuth, async (req: Request, res: Response) => {
             direction: "outbound",
             body: data.body,
             status: sendResult.success ? "queued" : "failed",
-            telnyxId: sendResult.telnyxId || null,
+            providerId: sendResult.providerId || null,
             fromNumber: "org",
             toNumber: contact.phoneNumber,
             mediaUrl: data.mediaUrl || null,
@@ -196,7 +196,7 @@ router.post("/send-group", requireAuth, async (req: Request, res: Response) => {
       });
 
       const item: SendResultItem = sendResult.success
-        ? { contactId: contact.id, contactName: contact.fullName, phoneNumber: contact.phoneNumber, status: "sent", telnyxId: sendResult.telnyxId }
+        ? { contactId: contact.id, contactName: contact.fullName, phoneNumber: contact.phoneNumber, status: "sent", providerId: sendResult.providerId }
         : { contactId: contact.id, contactName: contact.fullName, phoneNumber: contact.phoneNumber, status: "failed", reason: sendResult.error };
 
       return item;
@@ -255,7 +255,7 @@ router.post("/send-birthday", requireAuth, async (req: Request, res: Response) =
       phoneNumber: string;
       status: "sent" | "skipped" | "failed";
       reason?: string;
-      telnyxId?: string;
+      providerId?: string;
     };
 
     const skipped: SendResultItem[] = [];
@@ -298,7 +298,7 @@ router.post("/send-birthday", requireAuth, async (req: Request, res: Response) =
             direction: "outbound",
             body,
             status: sendResult.success ? "queued" : "failed",
-            telnyxId: sendResult.telnyxId || null,
+            providerId: sendResult.providerId || null,
             fromNumber: "org",
             toNumber: contact.phoneNumber,
             mediaUrl: mediaUrl || null,
@@ -309,7 +309,7 @@ router.post("/send-birthday", requireAuth, async (req: Request, res: Response) =
       });
 
       const item: SendResultItem = sendResult.success
-        ? { contactId: contact.id, contactName: contact.fullName, phoneNumber: contact.phoneNumber, status: "sent", telnyxId: sendResult.telnyxId }
+        ? { contactId: contact.id, contactName: contact.fullName, phoneNumber: contact.phoneNumber, status: "sent", providerId: sendResult.providerId }
         : { contactId: contact.id, contactName: contact.fullName, phoneNumber: contact.phoneNumber, status: "failed", reason: sendResult.error };
 
       return item;
@@ -332,28 +332,32 @@ router.post("/send-birthday", requireAuth, async (req: Request, res: Response) =
   }
 });
 
-// POST /api/sms/inbound — Telnyx inbound message webhook
+// POST /api/sms/inbound — inbound message webhook (Twilio or Telnyx)
 router.post("/inbound", async (req: Request, res: Response) => {
   try {
-    // Telnyx wraps webhook data in data.payload (or data.event_type at top level)
-    const eventType = req.body?.data?.event_type;
+    // Detect provider: Telnyx wraps in data.payload, Twilio sends flat fields
+    const isTelnyx = !!req.body?.data?.event_type;
+    let From: string, To: string, Body: string, MessageId: string | null;
 
-    // Only process inbound messages
-    if (eventType !== "message.received") {
-      res.status(200).json({ status: "ignored" });
-      return;
+    if (isTelnyx) {
+      const eventType = req.body.data.event_type;
+      if (eventType !== "message.received") {
+        res.status(200).json({ status: "ignored" });
+        return;
+      }
+      const payload = req.body.data.payload;
+      if (!payload) { res.status(200).json({ status: "no_payload" }); return; }
+      From = payload.from?.phone_number;
+      To = payload.to?.[0]?.phone_number;
+      Body = payload.text;
+      MessageId = payload.id;
+    } else {
+      // Twilio format
+      From = req.body.From;
+      To = req.body.To;
+      Body = req.body.Body;
+      MessageId = req.body.MessageSid || null;
     }
-
-    const payload = req.body?.data?.payload;
-    if (!payload) {
-      res.status(200).json({ status: "no_payload" });
-      return;
-    }
-
-    const From = payload.from?.phone_number;
-    const To = payload.to?.[0]?.phone_number;
-    const Body = payload.text;
-    const MessageId = payload.id;
 
     if (!From || !To || !Body) {
       res.status(200).json({ status: "incomplete" });
@@ -362,23 +366,27 @@ router.post("/inbound", async (req: Request, res: Response) => {
 
     // Idempotency: check if we already processed this message
     if (MessageId) {
-      const existing = await prisma.message.findUnique({ where: { telnyxId: MessageId } });
+      const existing = await prisma.message.findUnique({ where: { providerId: MessageId } });
       if (existing) {
         res.status(200).json({ status: "duplicate" });
         return;
       }
     }
 
-    // Find the org by the To number (our Telnyx number)
-    const telnyxConfig = await prisma.telnyxConfig.findFirst({
-      where: { phoneNumber: To },
-    });
+    // Find the org by the To number (check both providers)
+    let resolvedOrgId: string | undefined;
 
-    let resolvedOrgId = telnyxConfig?.organizationId;
+    const telnyxConfig = await prisma.telnyxConfig.findFirst({ where: { phoneNumber: To } });
+    if (telnyxConfig) resolvedOrgId = telnyxConfig.organizationId;
 
     if (!resolvedOrgId) {
-      // Fallback: find org by env telnyx number match
-      if (process.env.TELNYX_PHONE_NUMBER === To) {
+      const twilioConfig = await prisma.twilioConfig.findFirst({ where: { phoneNumber: To } });
+      if (twilioConfig) resolvedOrgId = twilioConfig.organizationId;
+    }
+
+    if (!resolvedOrgId) {
+      // Fallback: find org by env number match
+      if (process.env.TELNYX_PHONE_NUMBER === To || process.env.TWILIO_PHONE_NUMBER === To) {
         const firstOrg = await prisma.organization.findFirst();
         resolvedOrgId = firstOrg?.id;
       }
@@ -420,7 +428,7 @@ router.post("/inbound", async (req: Request, res: Response) => {
               eventType: "opted_out",
               source: "inbound_keyword",
               detail: `Keyword: ${bodyUpper}`,
-              telnyxId: MessageId || null,
+              providerId: MessageId || null,
             },
           });
         } else if (optInKeywords.includes(bodyUpper)) {
@@ -435,7 +443,7 @@ router.post("/inbound", async (req: Request, res: Response) => {
               eventType: "opted_in",
               source: "inbound_keyword",
               detail: `Keyword: ${bodyUpper}`,
-              telnyxId: MessageId || null,
+              providerId: MessageId || null,
             },
           });
         }
@@ -459,73 +467,82 @@ router.post("/inbound", async (req: Request, res: Response) => {
           direction: "inbound",
           body: Body,
           status: "received",
-          telnyxId: MessageId || null,
+          providerId: MessageId || null,
           fromNumber: From,
           toNumber: To,
         },
       });
     });
 
-    res.status(200).json({ status: "ok" });
+    if (isTelnyx) {
+      res.status(200).json({ status: "ok" });
+    } else {
+      res.status(200).type("text/xml").send("<Response></Response>");
+    }
   } catch (err) {
     console.error("Inbound webhook error:", err);
     // Never crash the webhook
-    res.status(200).json({ status: "error" });
+    if (req.body?.data?.event_type) {
+      res.status(200).json({ status: "error" });
+    } else {
+      res.status(200).type("text/xml").send("<Response></Response>");
+    }
   }
 });
 
-// POST /api/sms/status — Telnyx message status webhook
+// POST /api/sms/status — message status webhook (Twilio or Telnyx)
 router.post("/status", async (req: Request, res: Response) => {
   try {
-    const eventType = req.body?.data?.event_type;
+    const isTelnyx = !!req.body?.data?.event_type;
+    let messageId: string | null = null;
+    let mappedStatus: string;
+    let toNumber: string | null = null;
+    let errorCode: string | null = null;
+    let errorDetail: string | null = null;
 
-    // Telnyx sends message.sent, message.delivered, message.failed, etc.
-    const statusEvents = ["message.sent", "message.delivered", "message.failed", "message.finalized"];
-    if (!eventType || !statusEvents.includes(eventType)) {
-      res.status(200).json({ status: "ignored" });
-      return;
+    if (isTelnyx) {
+      const eventType = req.body.data.event_type;
+      const statusEvents = ["message.sent", "message.delivered", "message.failed", "message.finalized"];
+      if (!statusEvents.includes(eventType)) {
+        res.status(200).json({ status: "ignored" });
+        return;
+      }
+      const payload = req.body.data.payload;
+      if (!payload) { res.status(200).json({ status: "no_payload" }); return; }
+
+      messageId = payload.id;
+      toNumber = payload.to?.[0]?.phone_number || payload.to;
+      const statusMap: Record<string, string> = {
+        "message.sent": "sent", "message.delivered": "delivered",
+        "message.failed": "failed", "message.finalized": "delivered",
+      };
+      mappedStatus = statusMap[eventType] || "queued";
+      const errors = payload.errors || [];
+      errorCode = errors[0]?.code || null;
+      errorDetail = errors[0]?.detail || errors[0]?.title || null;
+    } else {
+      // Twilio format
+      messageId = req.body.MessageSid;
+      mappedStatus = req.body.MessageStatus || "queued";
+      toNumber = req.body.To;
+      errorCode = req.body.ErrorCode || null;
     }
-
-    const payload = req.body?.data?.payload;
-    if (!payload) {
-      res.status(200).json({ status: "no_payload" });
-      return;
-    }
-
-    const messageId = payload.id;
-    const toNumber = payload.to?.[0]?.phone_number || payload.to;
 
     if (!messageId) {
-      res.status(200).json({ status: "no_id" });
+      res.status(200).send("OK");
       return;
     }
 
-    // Map Telnyx event types to our status values
-    const statusMap: Record<string, string> = {
-      "message.sent": "sent",
-      "message.delivered": "delivered",
-      "message.failed": "failed",
-      "message.finalized": "delivered",
-    };
-    const mappedStatus = statusMap[eventType] || "queued";
-
-    // Find the message by telnyxId
     const message = await prisma.message.findUnique({
-      where: { telnyxId: messageId },
+      where: { providerId: messageId },
       include: { conversation: true },
     });
 
     if (!message) {
-      res.status(200).json({ status: "unknown_message" });
+      res.status(200).send("OK");
       return;
     }
 
-    // Extract error info from Telnyx payload
-    const errors = payload.errors || [];
-    const errorCode = errors[0]?.code || null;
-    const errorDetail = errors[0]?.detail || errors[0]?.title || null;
-
-    // Update message status
     await prisma.message.update({
       where: { id: message.id },
       data: {
@@ -537,29 +554,23 @@ router.post("/status", async (req: Request, res: Response) => {
 
     const orgId = message.conversation.organizationId;
 
-    // Handle failed statuses
-    if (mappedStatus === "failed") {
+    if (mappedStatus === "failed" || mappedStatus === "undelivered") {
       const resolvedTo = toNumber || message.toNumber;
-
       const contact = await prisma.contact.findUnique({
         where: {
-          organizationId_phoneNumber: {
-            organizationId: orgId,
-            phoneNumber: resolvedTo,
-          },
+          organizationId_phoneNumber: { organizationId: orgId, phoneNumber: resolvedTo },
         },
       });
 
       if (contact) {
-        // Telnyx error codes that suggest blocking/unreachable
-        const blockIndicatorCodes = ["40300", "40303", "40310", "40311", "40400", "40401"];
-        const isBlockSuspected = errorCode && blockIndicatorCodes.includes(errorCode);
+        const telnyxBlockCodes = ["40300", "40303", "40310", "40311", "40400", "40401"];
+        const twilioBlockCodes = ["21610", "21611", "21612", "30004", "30005", "30006", "30007"];
+        const blockCodes = [...telnyxBlockCodes, ...twilioBlockCodes];
+        const isBlockSuspected = errorCode && blockCodes.includes(errorCode);
+        const contactEventType = isBlockSuspected ? "blocked_suspected" : mappedStatus;
 
-        const contactEventType = isBlockSuspected ? "blocked_suspected" : "failed";
-
-        // Idempotent: check if we already have an event for this telnyxId + eventType
         const existingEvent = await prisma.contactStatusEvent.findFirst({
-          where: { telnyxId: messageId, eventType: contactEventType },
+          where: { providerId: messageId, eventType: contactEventType },
         });
 
         if (!existingEvent) {
@@ -569,19 +580,15 @@ router.post("/status", async (req: Request, res: Response) => {
               data: {
                 isBlockedSuspected: isBlockSuspected || contact.isBlockedSuspected,
                 blockedReason: isBlockSuspected
-                  ? `Error code ${errorCode}: ${errorDetail || getErrorDescription(errorCode)}`
+                  ? `Error code ${errorCode}: ${getErrorDescription(errorCode!)}`
                   : contact.blockedReason,
               },
             });
-
             await tx.contactStatusEvent.create({
               data: {
-                organizationId: orgId,
-                contactId: contact.id,
-                eventType: contactEventType,
-                source: "status_callback",
-                detail: `Status: ${mappedStatus}`,
-                telnyxId: messageId,
+                organizationId: orgId, contactId: contact.id,
+                eventType: contactEventType, source: "status_callback",
+                detail: `Status: ${mappedStatus}`, providerId: messageId,
                 errorCode: errorCode || null,
               },
             });
@@ -590,22 +597,30 @@ router.post("/status", async (req: Request, res: Response) => {
       }
     }
 
-    res.status(200).json({ status: "ok" });
+    res.status(200).send("OK");
   } catch (err) {
     console.error("Status callback error:", err);
-    // Never crash the webhook
-    res.status(200).json({ status: "error" });
+    res.status(200).send("OK");
   }
 });
 
 function getErrorDescription(code: string): string {
   const descriptions: Record<string, string> = {
+    // Telnyx
     "40300": "Message blocked - opt-out or consent issue",
     "40303": "Number not provisioned for messaging",
     "40310": "Message filtered by carrier",
     "40311": "Message rejected by carrier",
     "40400": "Destination number unreachable",
     "40401": "Destination number is not a valid mobile number",
+    // Twilio
+    "21610": "Message blocked by opt-out",
+    "21611": "Invalid To phone number",
+    "21612": "Unreachable To phone number",
+    "30004": "Message blocked",
+    "30005": "Unknown destination handset",
+    "30006": "Landline or unreachable carrier",
+    "30007": "Message filtered by carrier",
   };
   return descriptions[code] || "Unknown error";
 }
