@@ -226,6 +226,12 @@ export const api = {
   cancelScheduledMessage: (id: string) =>
     request<any>(`/scheduled/${encodeURIComponent(id)}`, { method: "DELETE" }, 0),
 
+  // Provider
+  getProvider: () => request<any>("/org/provider"),
+
+  setProvider: (smsProvider: string) =>
+    request<any>("/org/provider", { method: "PATCH", body: JSON.stringify({ smsProvider }) }, 0),
+
   // Branding
   getBranding: () => request<any>("/org/branding"),
 

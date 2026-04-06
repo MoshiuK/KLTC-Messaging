@@ -12,6 +12,14 @@ export default function Settings() {
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
 
+  // Provider state
+  const [providerInfo, setProviderInfo] = useState<any>(null);
+  const [switchingProvider, setSwitchingProvider] = useState(false);
+
+  useEffect(() => {
+    api.getProvider().then(setProviderInfo).catch(() => {});
+  }, []);
+
   useEffect(() => {
     setForm({ ...branding });
   }, [branding]);
@@ -47,6 +55,21 @@ export default function Settings() {
     }
   };
 
+  const handleProviderSwitch = async (provider: string) => {
+    setSwitchingProvider(true);
+    setError("");
+    setSuccess("");
+    try {
+      const res = await api.setProvider(provider);
+      setProviderInfo((prev: any) => ({ ...prev, smsProvider: provider }));
+      setSuccess(`Switched to ${provider === "twilio" ? "Twilio" : "Telnyx"} successfully!`);
+    } catch (err: any) {
+      setError(err.message || "Failed to switch provider");
+    } finally {
+      setSwitchingProvider(false);
+    }
+  };
+
   const set = (key: keyof BrandingConfig, val: string | null) =>
     setForm((f) => ({ ...f, [key]: val }));
 
@@ -57,6 +80,70 @@ export default function Settings() {
 
       {error && <div style={errorBox}>{error}</div>}
       {success && <div style={successBox}>{success}</div>}
+
+      {/* SMS Provider Section */}
+      {providerInfo && (
+        <div style={{ ...formCard, marginBottom: 24 }}>
+          <h3 style={{ marginTop: 0 }}>SMS / Voice Provider</h3>
+          <p style={{ color: "#666", fontSize: 13, marginBottom: 16 }}>
+            Choose which service to use for sending messages and making calls.
+          </p>
+
+          <div style={{ display: "flex", gap: 16, marginBottom: 16 }}>
+            {/* Twilio Option */}
+            <div
+              onClick={() => !switchingProvider && providerInfo.twilioConfigured && handleProviderSwitch("twilio")}
+              style={{
+                flex: 1,
+                padding: 20,
+                borderRadius: 8,
+                border: `2px solid ${providerInfo.smsProvider === "twilio" ? "#e74c3c" : "#ddd"}`,
+                background: providerInfo.smsProvider === "twilio" ? "#fef5f5" : "#fff",
+                cursor: providerInfo.twilioConfigured ? "pointer" : "not-allowed",
+                opacity: providerInfo.twilioConfigured ? 1 : 0.5,
+                textAlign: "center",
+              }}
+            >
+              <div style={{ fontSize: 20, fontWeight: 700, color: providerInfo.smsProvider === "twilio" ? "#e74c3c" : "#333" }}>
+                Twilio
+              </div>
+              <div style={{ fontSize: 12, color: "#666", marginTop: 4 }}>
+                {providerInfo.twilioConfigured ? "Configured" : "Not configured"}
+              </div>
+              {providerInfo.smsProvider === "twilio" && (
+                <div style={{ marginTop: 8, fontSize: 12, color: "#e74c3c", fontWeight: 600 }}>Active</div>
+              )}
+            </div>
+
+            {/* Telnyx Option */}
+            <div
+              onClick={() => !switchingProvider && providerInfo.telnyxConfigured && handleProviderSwitch("telnyx")}
+              style={{
+                flex: 1,
+                padding: 20,
+                borderRadius: 8,
+                border: `2px solid ${providerInfo.smsProvider === "telnyx" ? "#27ae60" : "#ddd"}`,
+                background: providerInfo.smsProvider === "telnyx" ? "#f0faf4" : "#fff",
+                cursor: providerInfo.telnyxConfigured ? "pointer" : "not-allowed",
+                opacity: providerInfo.telnyxConfigured ? 1 : 0.5,
+                textAlign: "center",
+              }}
+            >
+              <div style={{ fontSize: 20, fontWeight: 700, color: providerInfo.smsProvider === "telnyx" ? "#27ae60" : "#333" }}>
+                Telnyx
+              </div>
+              <div style={{ fontSize: 12, color: "#666", marginTop: 4 }}>
+                {providerInfo.telnyxConfigured ? "Configured" : "Not configured"}
+              </div>
+              {providerInfo.smsProvider === "telnyx" && (
+                <div style={{ marginTop: 8, fontSize: 12, color: "#27ae60", fontWeight: 600 }}>Active</div>
+              )}
+            </div>
+          </div>
+
+          {switchingProvider && <p style={{ color: "#666", fontSize: 13 }}>Switching provider...</p>}
+        </div>
+      )}
 
       <div style={{ display: "flex", gap: 24, alignItems: "flex-start", flexWrap: "wrap" }}>
         {/* Form */}
