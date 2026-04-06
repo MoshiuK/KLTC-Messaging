@@ -200,6 +200,12 @@ export const api = {
   deleteUser: (id: string) =>
     request<any>(`/users/${encodeURIComponent(id)}`, { method: "DELETE" }, 0),
 
+  // Message History
+  getMessageHistory: (params?: Record<string, string>) => {
+    const qs = params ? "?" + new URLSearchParams(params).toString() : "";
+    return request<any>(`/sms/history${qs}`);
+  },
+
   // Scheduled Messages
   getScheduledMessages: (status?: string) => {
     const qs = status ? `?status=${status}` : "";

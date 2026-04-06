@@ -23,6 +23,43 @@ async function processBatch<T, R>(
   return results;
 }
 
+// GET /api/sms/history — message history for the org
+router.get("/history", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const orgId = req.user!.organizationId;
+    const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
+    const offset = parseInt(req.query.offset as string) || 0;
+    const phoneNumber = req.query.phoneNumber as string | undefined;
+
+    const where: Record<string, unknown> = {
+      conversation: { organizationId: orgId },
+    };
+
+    if (phoneNumber) {
+      where.conversation = { organizationId: orgId, phoneNumber };
+    }
+
+    const [messages, total] = await Promise.all([
+      prisma.message.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        take: limit,
+        skip: offset,
+        include: {
+          conversation: { select: { phoneNumber: true, organizationId: true } },
+        },
+      }),
+      prisma.message.count({ where }),
+    ]);
+
+    res.json({ messages, total, limit, offset });
+  } catch (err) {
+    console.error("Message history error:", err);
+    const detail = err instanceof Error ? err.message : "Unknown error";
+    res.status(500).json({ error: "Internal server error", detail });
+  }
+});
+
 // POST /api/sms/send — direct send to a single number
 router.post("/send", requireAuth, async (req: Request, res: Response) => {
   try {
