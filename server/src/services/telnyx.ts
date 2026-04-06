@@ -111,7 +111,7 @@ export async function sendSms(
       createParams.media_urls = [options.mediaUrl];
     }
 
-    const message = await telnyxSetup.client.messages.create(createParams as any);
+    const message = await telnyxSetup.client.messages.send(createParams as any);
     const messageData = (message as any).data || message;
 
     return { success: true, telnyxId: messageData.id };
@@ -139,7 +139,7 @@ export async function makeVoiceCall(
   }
 
   try {
-    const call = await telnyxSetup.client.calls.create({
+    const call = await telnyxSetup.client.calls.dial({
       to,
       from: telnyxSetup.phoneNumber,
       connection_id: process.env.TELNYX_SIP_CONNECTION_ID || "",
