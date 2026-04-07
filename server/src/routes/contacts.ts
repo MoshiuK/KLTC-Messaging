@@ -104,7 +104,8 @@ router.post("/upload", async (req: Request, res: Response) => {
       const lastName = (row.lastName || "").trim();
       let phone = (row.phoneNumber || row.phone || "").trim();
       const email = (row.email || "").trim() || null;
-      const birthday = (row.birthday || "").trim() || null;
+      const birthdayRaw = (row.birthday || "").trim();
+      const birthday = birthdayRaw ? normalizeBirthdayToISO(birthdayRaw) : null;
 
       if (!firstName) {
         results.push({ name: `${firstName} ${lastName}`.trim() || "(empty)", phone, status: "skipped", reason: "Missing first name" });
@@ -283,5 +284,46 @@ router.delete("/:id", async (req: Request, res: Response) => {
     res.status(500).json({ error: "Internal server error" });
   }
 });
+
+/**
+ * Normalize various birthday formats to YYYY-MM-DD for consistency with the rest of the API.
+ * Accepts: MM/DD/YYYY, MM-DD-YYYY, YYYY-MM-DD, YYYY/MM/DD, MM/DD, MM-DD
+ * Returns YYYY-MM-DD string or null if unparseable.
+ */
+function normalizeBirthdayToISO(raw: string): string | null {
+  // YYYY-MM-DD or YYYY/MM/DD
+  let match = raw.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+  if (match) {
+    const [, yyyy, mm, dd] = match;
+    return `${yyyy}-${mm.padStart(2, "0")}-${dd.padStart(2, "0")}`;
+  }
+
+  // MM/DD/YYYY or MM-DD-YYYY
+  match = raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (match) {
+    const [, mm, dd, yyyy] = match;
+    return `${yyyy}-${mm.padStart(2, "0")}-${dd.padStart(2, "0")}`;
+  }
+
+  // MM/DD/YY or MM-DD-YY (assume 1900s for >50, 2000s for <=50)
+  match = raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2})$/);
+  if (match) {
+    const [, mm, dd, yy] = match;
+    const year = parseInt(yy, 10) > 50 ? `19${yy}` : `20${yy}`;
+    return `${year}-${mm.padStart(2, "0")}-${dd.padStart(2, "0")}`;
+  }
+
+  // MM/DD or MM-DD (no year — use placeholder year 2000)
+  match = raw.match(/^(\d{1,2})[\/\-](\d{1,2})$/);
+  if (match) {
+    const [, mm, dd] = match;
+    return `2000-${mm.padStart(2, "0")}-${dd.padStart(2, "0")}`;
+  }
+
+  // Already matches YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+
+  return null;
+}
 
 export default router;
