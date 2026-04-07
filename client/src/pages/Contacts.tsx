@@ -12,6 +12,18 @@ function useDebounce(value: string, delay: number): string {
   return debounced;
 }
 
+interface UploadResult {
+  name: string;
+  phone: string;
+  status: "created" | "skipped" | "error";
+  reason?: string;
+}
+
+interface UploadResponse {
+  summary: { total: number; created: number; skipped: number; errors: number };
+  results: UploadResult[];
+}
+
 export default function Contacts() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
@@ -23,6 +35,13 @@ export default function Contacts() {
   const [error, setError] = useState("");
   const [formError, setFormError] = useState("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+  const [showUpload, setShowUpload] = useState(false);
+  const [uploadParsed, setUploadParsed] = useState<Array<{ firstName: string; lastName: string; phoneNumber: string; email?: string; birthday?: string }>>([]);
+  const [uploadFileName, setUploadFileName] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [uploadResult, setUploadResult] = useState<UploadResponse | null>(null);
+  const [uploadError, setUploadError] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadContacts = useCallback(async () => {
     try {
@@ -95,16 +114,175 @@ export default function Contacts() {
     }
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadError("");
+    setUploadResult(null);
+    setUploadFileName(file.name);
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const text = ev.target?.result as string;
+        const rows = parseContactsCSV(text);
+        if (rows.length === 0) {
+          setUploadError("No valid rows found. Expected columns: firstName, lastName, phoneNumber (or phone).");
+          setUploadParsed([]);
+          return;
+        }
+        setUploadParsed(rows);
+      } catch (err: any) {
+        setUploadError(err.message || "Failed to parse file.");
+        setUploadParsed([]);
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleBulkUpload = async () => {
+    if (uploadParsed.length === 0) return;
+    setUploading(true);
+    setUploadError("");
+    setUploadResult(null);
+    try {
+      const result = await api.uploadContacts(uploadParsed);
+      setUploadResult(result);
+      loadContacts();
+    } catch (err: any) {
+      setUploadError(err.message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const resetUpload = () => {
+    setShowUpload(false);
+    setUploadParsed([]);
+    setUploadFileName("");
+    setUploadResult(null);
+    setUploadError("");
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
         <h1 style={{ margin: 0 }}>Contacts</h1>
-        <button onClick={() => { resetForm(); setShowForm(!showForm); }} style={btnPrimary}>
-          {showForm ? "Cancel" : "+ New Contact"}
-        </button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={() => { resetUpload(); setShowUpload(!showUpload); setShowForm(false); }} style={{ ...btnPrimary, background: showUpload ? "#95a5a6" : "#2c3e50" }}>
+            {showUpload ? "Cancel Upload" : "Upload CSV"}
+          </button>
+          <button onClick={() => { resetForm(); setShowForm(!showForm); setShowUpload(false); }} style={btnPrimary}>
+            {showForm ? "Cancel" : "+ New Contact"}
+          </button>
+        </div>
       </div>
 
       {error && <div style={errorBox}>{error}</div>}
+
+      {showUpload && (
+        <div style={formCard}>
+          <h3 style={{ marginTop: 0 }}>Upload Contacts CSV</h3>
+          <p style={{ color: "#666", fontSize: 13, marginTop: 0 }}>
+            Upload a CSV file with columns: <strong>firstName</strong>, <strong>lastName</strong>, <strong>phoneNumber</strong> (or <strong>phone</strong>).
+            Optional columns: <strong>email</strong>, <strong>birthday</strong>.
+            Phone numbers can be 10-digit (auto-prepends +1) or E.164 format.
+          </p>
+
+          <div style={{ marginBottom: 16 }}>
+            <label style={labelStyle}>Select CSV File *</label>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv,.txt,.tsv"
+              onChange={handleFileChange}
+              style={{ fontSize: 14 }}
+            />
+          </div>
+
+          {uploadError && <div style={errorBox}>{uploadError}</div>}
+
+          {uploadParsed.length > 0 && !uploadResult && (
+            <div>
+              <p style={{ fontWeight: 500, marginBottom: 8 }}>
+                Preview: {uploadParsed.length} contacts found in {uploadFileName}
+              </p>
+              <div style={{ overflowX: "auto", maxHeight: 200, overflowY: "auto", marginBottom: 12 }}>
+                <table style={tableStyle}>
+                  <thead>
+                    <tr>
+                      <th style={thStyle}>#</th>
+                      <th style={thStyle}>First Name</th>
+                      <th style={thStyle}>Last Name</th>
+                      <th style={thStyle}>Phone</th>
+                      <th style={thStyle}>Email</th>
+                      <th style={thStyle}>Birthday</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {uploadParsed.map((row, i) => (
+                      <tr key={i}>
+                        <td style={tdStyle}>{i + 1}</td>
+                        <td style={tdStyle}>{row.firstName}</td>
+                        <td style={tdStyle}>{row.lastName}</td>
+                        <td style={tdStyle}>{row.phoneNumber}</td>
+                        <td style={tdStyle}>{row.email || "-"}</td>
+                        <td style={tdStyle}>{row.birthday || "-"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <button onClick={handleBulkUpload} disabled={uploading} style={{ ...btnPrimary, opacity: uploading ? 0.7 : 1 }}>
+                {uploading ? "Importing..." : `Import ${uploadParsed.length} Contacts`}
+              </button>
+            </div>
+          )}
+
+          {uploadResult && (
+            <div style={{ background: "#f0faf0", padding: 16, borderRadius: 8, marginTop: 12 }}>
+              <h4 style={{ marginTop: 0 }}>Import Complete</h4>
+              <div style={{ display: "flex", gap: 16, marginBottom: 12 }}>
+                <span><strong>{uploadResult.summary.created}</strong> created</span>
+                <span><strong>{uploadResult.summary.skipped}</strong> skipped</span>
+                <span><strong>{uploadResult.summary.errors}</strong> errors</span>
+              </div>
+              {uploadResult.results.some((r) => r.status !== "created") && (
+                <div style={{ overflowX: "auto", maxHeight: 200, overflowY: "auto" }}>
+                  <table style={tableStyle}>
+                    <thead>
+                      <tr>
+                        <th style={thStyle}>Name</th>
+                        <th style={thStyle}>Phone</th>
+                        <th style={thStyle}>Status</th>
+                        <th style={thStyle}>Reason</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {uploadResult.results.filter((r) => r.status !== "created").map((r, i) => (
+                        <tr key={i}>
+                          <td style={tdStyle}>{r.name}</td>
+                          <td style={tdStyle}>{r.phone}</td>
+                          <td style={tdStyle}>
+                            <span style={{
+                              padding: "2px 8px", borderRadius: 12, fontSize: 12, color: "#fff",
+                              background: r.status === "skipped" ? "#f39c12" : "#e74c3c",
+                            }}>
+                              {r.status}
+                            </span>
+                          </td>
+                          <td style={tdStyle}>{r.reason || "-"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {showForm && (
         <form onSubmit={handleSubmit} style={formCard}>
@@ -205,6 +383,89 @@ function Chip({ label, color }: { label: string; color: string }) {
       {label}
     </span>
   );
+}
+
+function parseContactsCSV(text: string): Array<{ firstName: string; lastName: string; phoneNumber: string; email?: string; birthday?: string }> {
+  const lines = text.split(/\r?\n/).filter((l) => l.trim());
+  if (lines.length === 0) return [];
+
+  const delimiter = lines[0].includes("\t") ? "\t" : ",";
+  const allRows = lines.map((line) => splitCSVLine(line, delimiter));
+
+  const firstRow = allRows[0].map((c) => c.toLowerCase().trim());
+  const headerKeywords = ["name", "first", "last", "phone", "email", "birthday", "mobile", "cell"];
+  const isHeader = firstRow.some((cell) => headerKeywords.includes(cell) || headerKeywords.some((kw) => cell.includes(kw)));
+
+  const dataRows = isHeader ? allRows.slice(1) : allRows;
+  const results: Array<{ firstName: string; lastName: string; phoneNumber: string; email?: string; birthday?: string }> = [];
+
+  if (isHeader) {
+    const firstNameIdx = firstRow.findIndex((h) => h === "firstname" || h === "first name" || h === "first");
+    const lastNameIdx = firstRow.findIndex((h) => h === "lastname" || h === "last name" || h === "last");
+    const nameIdx = firstRow.findIndex((h) => h === "name" || h === "full name" || h === "fullname");
+    const phoneIdx = firstRow.findIndex((h) => h === "phone" || h === "phonenumber" || h === "phone number" || h === "mobile" || h === "cell");
+    const emailIdx = firstRow.findIndex((h) => h === "email" || h === "e-mail");
+    const bdayIdx = firstRow.findIndex((h) => h === "birthday" || h === "birthdate" || h === "dob" || h === "date of birth");
+
+    for (const row of dataRows) {
+      let firstName = "";
+      let lastName = "";
+
+      if (firstNameIdx >= 0) {
+        firstName = (row[firstNameIdx] || "").trim();
+        lastName = lastNameIdx >= 0 ? (row[lastNameIdx] || "").trim() : "";
+      } else if (nameIdx >= 0) {
+        const parts = (row[nameIdx] || "").trim().split(/\s+/);
+        firstName = parts[0] || "";
+        lastName = parts.slice(1).join(" ") || "";
+      } else {
+        firstName = (row[0] || "").trim();
+        lastName = (row[1] || "").trim();
+      }
+
+      const phone = (row[phoneIdx >= 0 ? phoneIdx : (nameIdx >= 0 ? 1 : 2)] || "").trim();
+      const email = emailIdx >= 0 ? (row[emailIdx] || "").trim() || undefined : undefined;
+      const birthday = bdayIdx >= 0 ? (row[bdayIdx] || "").trim() || undefined : undefined;
+
+      if (firstName || phone) {
+        results.push({ firstName, lastName, phoneNumber: phone, email, birthday });
+      }
+    }
+  } else {
+    // No header: assume col0=firstName, col1=lastName, col2=phone, col3=email (opt), col4=birthday (opt)
+    for (const row of dataRows) {
+      const firstName = (row[0] || "").trim();
+      const lastName = (row[1] || "").trim();
+      const phone = (row[2] || "").trim();
+      const email = (row[3] || "").trim() || undefined;
+      const birthday = (row[4] || "").trim() || undefined;
+      if (firstName || phone) {
+        results.push({ firstName, lastName, phoneNumber: phone, email, birthday });
+      }
+    }
+  }
+
+  return results;
+}
+
+function splitCSVLine(line: string, delimiter: string): string[] {
+  const result: string[] = [];
+  let current = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    if (char === '"') {
+      if (inQuotes && line[i + 1] === '"') { current += '"'; i++; }
+      else { inQuotes = !inQuotes; }
+    } else if (char === delimiter && !inQuotes) {
+      result.push(current);
+      current = "";
+    } else {
+      current += char;
+    }
+  }
+  result.push(current);
+  return result;
 }
 
 const btnPrimary: React.CSSProperties = { padding: "8px 16px", background: "#1a1a2e", color: "#fff", border: "none", borderRadius: 4, cursor: "pointer", fontSize: 14 };
