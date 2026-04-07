@@ -5,7 +5,7 @@ const CHECK_INTERVAL = 60 * 1000; // Check every 60 seconds
 let lastCheckedMinute = "";
 
 export function startBirthdayScheduler() {
-  console.log("Birthday scheduler started (checking every 60 seconds)");
+  console.log("Message scheduler started (checking every 60 seconds)");
 
   setInterval(async () => {
     try {
@@ -16,18 +16,20 @@ export function startBirthdayScheduler() {
       if (currentTime === lastCheckedMinute) return;
       lastCheckedMinute = currentTime;
 
-      // Get all enabled birthday configs
+      // Birthday announcements
       const configs = await prisma.birthdayConfig.findMany({
         where: { isEnabled: true, groupId: { not: null } },
       });
 
       for (const config of configs) {
         if (config.scheduledTime !== currentTime) continue;
-
         await processBirthdaysForOrg(config);
       }
+
+      // Daily scripture messages
+      await processDailyScriptures(currentTime);
     } catch (err) {
-      console.error("Birthday scheduler error:", err);
+      console.error("Message scheduler error:", err);
     }
   }, CHECK_INTERVAL);
 }
@@ -160,4 +162,116 @@ async function processBirthdaysForOrg(config: {
   });
 
   console.log(`Birthday scheduler: Processed ${todaysBirthdays.length} birthday(s) for org ${config.organizationId}`);
+}
+
+// ─── Daily Scripture Scheduler ────────────────────────────────
+
+async function processDailyScriptures(currentTime: string) {
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+
+  // Find active scriptures where: sendTime matches, today is within date range, not already sent today
+  const scriptures = await prisma.dailyScripture.findMany({
+    where: {
+      status: "active",
+      sendTime: currentTime,
+      startDate: { lte: todayStr },
+      endDate: { gte: todayStr },
+      OR: [
+        { lastSentDate: null },
+        { lastSentDate: { not: todayStr } },
+      ],
+    },
+  });
+
+  for (const scripture of scriptures) {
+    try {
+      // Get the group and members
+      const group = await prisma.contactGroup.findFirst({
+        where: { id: scripture.groupId, organizationId: scripture.organizationId },
+        include: {
+          members: {
+            include: { contact: true },
+          },
+        },
+      });
+
+      if (!group) {
+        console.error(`Daily scripture: Group ${scripture.groupId} not found`);
+        continue;
+      }
+
+      const activeMembers = group.members.filter(
+        (m) => m.contact.isActive && !m.contact.isOptedOut && !m.contact.isBlockedSuspected
+      );
+
+      if (activeMembers.length === 0) continue;
+
+      console.log(`Daily scripture: Sending to ${activeMembers.length} members in group "${group.name}"`);
+
+      // Send in batches
+      const BATCH_SIZE = 5;
+      for (let i = 0; i < activeMembers.length; i += BATCH_SIZE) {
+        const batch = activeMembers.slice(i, i + BATCH_SIZE);
+        await Promise.all(
+          batch.map(async (member) => {
+            try {
+              const result = await sendSms(scripture.organizationId, member.contact.phoneNumber, scripture.body);
+
+              await prisma.$transaction(async (tx) => {
+                const conversation = await tx.conversation.upsert({
+                  where: {
+                    organizationId_phoneNumber: {
+                      organizationId: scripture.organizationId,
+                      phoneNumber: member.contact.phoneNumber,
+                    },
+                  },
+                  create: { organizationId: scripture.organizationId, phoneNumber: member.contact.phoneNumber },
+                  update: {},
+                });
+
+                await tx.message.create({
+                  data: {
+                    conversationId: conversation.id,
+                    direction: "outbound",
+                    body: scripture.body,
+                    status: result.success ? "queued" : "failed",
+                    twilioSid: result.twilioSid || null,
+                    fromNumber: "org",
+                    toNumber: member.contact.phoneNumber,
+                    errorCode: result.errorCode || null,
+                    errorMessage: result.error || null,
+                  },
+                });
+              });
+
+              if (!result.success) {
+                console.error(`Daily scripture: Failed to send to ${member.contact.phoneNumber}: ${result.error}`);
+              }
+            } catch (err) {
+              console.error(`Daily scripture: Error sending to ${member.contact.phoneNumber}:`, err);
+            }
+          })
+        );
+      }
+
+      // Mark as sent today
+      await prisma.dailyScripture.update({
+        where: { id: scripture.id },
+        data: { lastSentDate: todayStr },
+      });
+
+      // If today is the end date, mark as completed
+      if (todayStr === scripture.endDate) {
+        await prisma.dailyScripture.update({
+          where: { id: scripture.id },
+          data: { status: "completed" },
+        });
+      }
+
+      console.log(`Daily scripture: Sent to ${activeMembers.length} members`);
+    } catch (err) {
+      console.error(`Daily scripture: Error processing scripture ${scripture.id}:`, err);
+    }
+  }
 }

@@ -10,6 +10,7 @@ import orgRoutes from "./routes/org";
 import userRoutes from "./routes/users";
 import notificationRoutes from "./routes/notifications";
 import scheduledMessageRoutes from "./routes/scheduledMessages";
+import dailyScriptureRoutes from "./routes/dailyScripture";
 import { errorHandler } from "./middleware/errorHandler";
 
 const app = express();
@@ -70,6 +71,7 @@ app.use("/api/org", orgRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/scheduled-messages", scheduledMessageRoutes);
+app.use("/api/daily-scripture", dailyScriptureRoutes);
 
 // Error handler
 app.use(errorHandler);

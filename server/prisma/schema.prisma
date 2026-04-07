@@ -27,6 +27,7 @@ model Organization {
   voiceCallTwimls     VoiceCallTwiml[]
   scheduledMessages   ScheduledMessage[]
   birthdayConfig      BirthdayConfig?
+  dailyScriptures     DailyScripture[]
 }
 
 model User {
@@ -241,4 +242,23 @@ model VoiceCallTwiml {
   organization Organization @relation(fields: [organizationId], references: [id])
 
   @@index([organizationId])
+}
+
+model DailyScripture {
+  id             String   @id @default(cuid())
+  organizationId String
+  groupId        String
+  body           String
+  sendTime       String   @default("08:00") // HH:MM format
+  startDate      String   // YYYY-MM-DD
+  endDate        String   // YYYY-MM-DD
+  status         String   @default("active") // active, cancelled, completed
+  lastSentDate   String?  // YYYY-MM-DD of last successful send
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
+  @@index([status])
 }

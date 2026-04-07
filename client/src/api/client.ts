@@ -191,6 +191,18 @@ export const api = {
   updateBirthdayConfig: (data: Record<string, unknown>) =>
     request<any>("/scheduled-messages/config", { method: "PUT", body: JSON.stringify(data) }, 0),
 
+  // Daily Scripture
+  getDailyScriptures: () => request<any[]>("/daily-scripture"),
+
+  createDailyScripture: (data: { groupId: string; body: string; sendTime: string; startDate: string; endDate: string }) =>
+    request<any>("/daily-scripture", { method: "POST", body: JSON.stringify(data) }, 0),
+
+  updateDailyScripture: (id: string, data: Record<string, unknown>) =>
+    request<any>(`/daily-scripture/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(data) }, 0),
+
+  deleteDailyScripture: (id: string) =>
+    request<any>(`/daily-scripture/${encodeURIComponent(id)}`, { method: "DELETE" }, 0),
+
   // Notifications
   getNotifications: (params?: Record<string, string>) => {
     const qs = params ? "?" + new URLSearchParams(params).toString() : "";
