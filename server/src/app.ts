@@ -9,6 +9,7 @@ import voiceRoutes from "./routes/voice";
 import orgRoutes from "./routes/org";
 import userRoutes from "./routes/users";
 import notificationRoutes from "./routes/notifications";
+import scheduledMessageRoutes from "./routes/scheduledMessages";
 import { errorHandler } from "./middleware/errorHandler";
 
 const app = express();
@@ -68,6 +69,7 @@ app.use("/api/voice", voiceRoutes);
 app.use("/api/org", orgRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/scheduled-messages", scheduledMessageRoutes);
 
 // Error handler
 app.use(errorHandler);

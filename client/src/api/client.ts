@@ -166,8 +166,24 @@ export const api = {
       body: JSON.stringify({ groupId, body, contactName, mediaUrl }),
     }, 0),
 
+  // Contacts bulk upload
+  uploadContacts: (rows: Array<{ firstName: string; lastName: string; phoneNumber: string; email?: string; birthday?: string }>) =>
+    request<any>("/contacts/upload", { method: "POST", body: JSON.stringify({ rows }) }, 0),
+
   // Birthdays
   getBirthdays: () => request<any>("/contacts/birthdays"),
+
+  // Scheduled Messages
+  getScheduledMessages: () => request<any[]>("/scheduled-messages"),
+
+  uploadBirthdays: (rows: Array<{ name: string; birthday: string; phone?: string }>, messageTemplate: string) =>
+    request<any>("/scheduled-messages/upload", { method: "POST", body: JSON.stringify({ rows, messageTemplate }) }, 0),
+
+  deleteScheduledMessage: (id: string) =>
+    request<any>(`/scheduled-messages/${encodeURIComponent(id)}`, { method: "DELETE" }, 0),
+
+  updateScheduledMessage: (id: string, data: Record<string, unknown>) =>
+    request<any>(`/scheduled-messages/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(data) }, 0),
 
   // Notifications
   getNotifications: (params?: Record<string, string>) => {

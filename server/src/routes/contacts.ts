@@ -86,6 +86,96 @@ router.get("/", async (req: Request, res: Response) => {
   }
 });
 
+// POST /api/contacts/upload — bulk import contacts from CSV
+router.post("/upload", async (req: Request, res: Response) => {
+  try {
+    const orgId = req.user!.organizationId;
+    const { rows } = req.body;
+
+    if (!Array.isArray(rows) || rows.length === 0) {
+      res.status(400).json({ error: "No rows provided. Please upload a file with at least one entry." });
+      return;
+    }
+
+    const results: Array<{ name: string; phone: string; status: "created" | "skipped" | "error"; reason?: string }> = [];
+
+    for (const row of rows) {
+      const firstName = (row.firstName || "").trim();
+      const lastName = (row.lastName || "").trim();
+      let phone = (row.phoneNumber || row.phone || "").trim();
+      const email = (row.email || "").trim() || null;
+      const birthday = (row.birthday || "").trim() || null;
+
+      if (!firstName) {
+        results.push({ name: `${firstName} ${lastName}`.trim() || "(empty)", phone, status: "skipped", reason: "Missing first name" });
+        continue;
+      }
+      if (!lastName) {
+        results.push({ name: firstName, phone, status: "skipped", reason: "Missing last name" });
+        continue;
+      }
+      if (!phone) {
+        results.push({ name: `${firstName} ${lastName}`, phone, status: "skipped", reason: "Missing phone number" });
+        continue;
+      }
+
+      // Auto-format phone: if it starts with a digit and is 10 digits, prepend +1
+      if (/^\d{10}$/.test(phone)) {
+        phone = `+1${phone}`;
+      } else if (/^1\d{10}$/.test(phone)) {
+        phone = `+${phone}`;
+      }
+
+      // Validate E.164
+      if (!/^\+[1-9]\d{1,14}$/.test(phone)) {
+        results.push({ name: `${firstName} ${lastName}`, phone, status: "skipped", reason: "Invalid phone format. Must be E.164 (e.g. +15551234567)." });
+        continue;
+      }
+
+      const fullName = `${firstName} ${lastName}`;
+
+      try {
+        // Check for existing contact
+        const existing = await prisma.contact.findUnique({
+          where: { organizationId_phoneNumber: { organizationId: orgId, phoneNumber: phone } },
+        });
+
+        if (existing) {
+          results.push({ name: fullName, phone, status: "skipped", reason: "Phone number already exists" });
+          continue;
+        }
+
+        await prisma.contact.create({
+          data: {
+            organizationId: orgId,
+            firstName,
+            lastName,
+            fullName,
+            phoneNumber: phone,
+            email,
+            birthday,
+          },
+        });
+        results.push({ name: fullName, phone, status: "created" });
+      } catch (err) {
+        results.push({ name: fullName, phone, status: "error", reason: "Database error" });
+      }
+    }
+
+    const summary = {
+      total: results.length,
+      created: results.filter((r) => r.status === "created").length,
+      skipped: results.filter((r) => r.status === "skipped").length,
+      errors: results.filter((r) => r.status === "error").length,
+    };
+
+    res.status(201).json({ summary, results });
+  } catch (err) {
+    console.error("Upload contacts error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // POST /api/contacts
 router.post("/", async (req: Request, res: Response) => {
   try {
