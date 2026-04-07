@@ -92,7 +92,7 @@ export default function ScheduledMessages() {
     setError("");
     setConfigSuccess("");
     try {
-      const saved = await api.updateBirthdayConfig(config);
+      const saved = await api.updateBirthdayConfig({ ...config });
       setConfig(saved);
       setConfigSuccess("Configuration saved successfully!");
       setTimeout(() => setConfigSuccess(""), 3000);
