@@ -26,6 +26,7 @@ model Organization {
   conversations       Conversation[]
   voiceCallTwimls     VoiceCallTwiml[]
   scheduledMessages   ScheduledMessage[]
+  birthdayConfig      BirthdayConfig?
 }
 
 model User {
@@ -199,6 +200,7 @@ model ScheduledMessage {
   scheduledTime  String   @default("08:05") // HH:MM format
   recurrence     String   @default("annual")
   isActive       Boolean  @default(true)
+  lastSentYear   Int?     // Track last year sent to avoid duplicates
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -206,6 +208,24 @@ model ScheduledMessage {
 
   @@index([organizationId])
   @@index([birthday])
+}
+
+model BirthdayConfig {
+  id             String   @id @default(cuid())
+  organizationId String   @unique
+  groupId        String?
+  template1      String   @default("Happy Birthday, {name}! Wishing you a wonderful day!")
+  template2      String   @default("It's {name}'s birthday today! Let's wish them a great one!")
+  template3      String   @default("Happy Birthday to {name}! Hope your day is amazing!")
+  template4      String   @default("Wishing the happiest of birthdays to {name}! Enjoy your special day!")
+  template5      String   @default("Birthday shoutout to {name}! Have an incredible birthday!")
+  rotationIndex  Int      @default(0)
+  isEnabled      Boolean  @default(false)
+  scheduledTime  String   @default("08:05")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
 }
 
 model VoiceCallTwiml {

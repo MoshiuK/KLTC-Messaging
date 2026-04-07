@@ -1,6 +1,7 @@
 import path from "path";
 import express from "express";
 import app from "./app";
+import { startBirthdayScheduler } from "./services/birthdayScheduler";
 
 const PORT = parseInt(process.env.PORT || "5173", 10);
 
@@ -19,4 +20,5 @@ app.get("*", (_req, res) => {
 
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`Server running on http://0.0.0.0:${PORT}`);
+  startBirthdayScheduler();
 });

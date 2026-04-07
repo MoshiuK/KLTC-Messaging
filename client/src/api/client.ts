@@ -176,14 +176,20 @@ export const api = {
   // Scheduled Messages
   getScheduledMessages: () => request<any[]>("/scheduled-messages"),
 
-  uploadBirthdays: (rows: Array<{ name: string; birthday: string; phone?: string }>, messageTemplate: string) =>
-    request<any>("/scheduled-messages/upload", { method: "POST", body: JSON.stringify({ rows, messageTemplate }) }, 0),
+  uploadBirthdays: (rows: Array<{ name: string; birthday: string; phone?: string }>) =>
+    request<any>("/scheduled-messages/upload", { method: "POST", body: JSON.stringify({ rows }) }, 0),
 
   deleteScheduledMessage: (id: string) =>
     request<any>(`/scheduled-messages/${encodeURIComponent(id)}`, { method: "DELETE" }, 0),
 
   updateScheduledMessage: (id: string, data: Record<string, unknown>) =>
     request<any>(`/scheduled-messages/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(data) }, 0),
+
+  // Birthday Config
+  getBirthdayConfig: () => request<any>("/scheduled-messages/config"),
+
+  updateBirthdayConfig: (data: Record<string, unknown>) =>
+    request<any>("/scheduled-messages/config", { method: "PUT", body: JSON.stringify(data) }, 0),
 
   // Notifications
   getNotifications: (params?: Record<string, string>) => {

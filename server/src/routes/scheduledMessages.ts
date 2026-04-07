@@ -5,13 +5,97 @@ import { requireAuth } from "../middleware/auth";
 const router = Router();
 router.use(requireAuth);
 
-// GET /api/scheduled-messages — list all scheduled messages
+// ─── Birthday Config ─────────────────────────────────────────
+
+// GET /api/scheduled-messages/config — get birthday announcement config
+router.get("/config", async (req: Request, res: Response) => {
+  try {
+    const orgId = req.user!.organizationId;
+    let config = await prisma.birthdayConfig.findUnique({
+      where: { organizationId: orgId },
+    });
+
+    if (!config) {
+      // Return defaults without creating
+      res.json({
+        groupId: null,
+        template1: "Happy Birthday, {name}! Wishing you a wonderful day!",
+        template2: "It's {name}'s birthday today! Let's wish them a great one!",
+        template3: "Happy Birthday to {name}! Hope your day is amazing!",
+        template4: "Wishing the happiest of birthdays to {name}! Enjoy your special day!",
+        template5: "Birthday shoutout to {name}! Have an incredible birthday!",
+        rotationIndex: 0,
+        isEnabled: false,
+        scheduledTime: "08:05",
+      });
+      return;
+    }
+
+    res.json(config);
+  } catch (err) {
+    console.error("Get birthday config error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// PUT /api/scheduled-messages/config — update birthday announcement config
+router.put("/config", async (req: Request, res: Response) => {
+  try {
+    const orgId = req.user!.organizationId;
+    const { groupId, template1, template2, template3, template4, template5, isEnabled } = req.body;
+
+    // Validate templates contain {name}
+    const templates = [template1, template2, template3, template4, template5];
+    for (let i = 0; i < templates.length; i++) {
+      if (typeof templates[i] !== "string" || !templates[i].trim()) {
+        res.status(400).json({ error: `Message template ${i + 1} is required.` });
+        return;
+      }
+      if (!templates[i].toLowerCase().includes("{name}")) {
+        res.status(400).json({ error: `Message template ${i + 1} must include {name} placeholder.` });
+        return;
+      }
+    }
+
+    const config = await prisma.birthdayConfig.upsert({
+      where: { organizationId: orgId },
+      create: {
+        organizationId: orgId,
+        groupId: groupId || null,
+        template1: template1.trim(),
+        template2: template2.trim(),
+        template3: template3.trim(),
+        template4: template4.trim(),
+        template5: template5.trim(),
+        isEnabled: !!isEnabled,
+      },
+      update: {
+        groupId: groupId || null,
+        template1: template1.trim(),
+        template2: template2.trim(),
+        template3: template3.trim(),
+        template4: template4.trim(),
+        template5: template5.trim(),
+        isEnabled: !!isEnabled,
+      },
+    });
+
+    res.json(config);
+  } catch (err) {
+    console.error("Update birthday config error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ─── Scheduled Messages CRUD ──────────────────────────────────
+
+// GET /api/scheduled-messages — list all scheduled birthday entries
 router.get("/", async (req: Request, res: Response) => {
   try {
     const orgId = req.user!.organizationId;
     const messages = await prisma.scheduledMessage.findMany({
       where: { organizationId: orgId },
-      orderBy: { createdAt: "desc" },
+      orderBy: { birthday: "asc" },
     });
     res.json(messages);
   } catch (err) {
@@ -20,19 +104,14 @@ router.get("/", async (req: Request, res: Response) => {
   }
 });
 
-// POST /api/scheduled-messages/upload — upload birthday CSV to create scheduled messages
+// POST /api/scheduled-messages/upload — upload birthday CSV
 router.post("/upload", async (req: Request, res: Response) => {
   try {
     const orgId = req.user!.organizationId;
-    const { rows, messageTemplate } = req.body;
+    const { rows } = req.body;
 
     if (!Array.isArray(rows) || rows.length === 0) {
       res.status(400).json({ error: "No rows provided. Please upload a file with at least one entry." });
-      return;
-    }
-
-    if (!messageTemplate || typeof messageTemplate !== "string" || !messageTemplate.trim()) {
-      res.status(400).json({ error: "A message template is required." });
       return;
     }
 
@@ -41,6 +120,7 @@ router.post("/upload", async (req: Request, res: Response) => {
     for (const row of rows) {
       const name = (row.name || "").trim();
       const birthdayRaw = (row.birthday || "").trim();
+      const phone = (row.phone || "").trim();
 
       if (!name) {
         results.push({ name: name || "(empty)", birthday: birthdayRaw, status: "skipped", reason: "Missing name" });
@@ -52,7 +132,6 @@ router.post("/upload", async (req: Request, res: Response) => {
         continue;
       }
 
-      // Parse birthday into MM-DD format
       const mmdd = parseBirthdayToMMDD(birthdayRaw);
       if (!mmdd) {
         results.push({ name, birthday: birthdayRaw, status: "skipped", reason: "Invalid date format. Use MM/DD, MM-DD, or YYYY-MM-DD." });
@@ -60,13 +139,23 @@ router.post("/upload", async (req: Request, res: Response) => {
       }
 
       try {
+        // Check for duplicate (same org, same name, same birthday)
+        const existing = await prisma.scheduledMessage.findFirst({
+          where: { organizationId: orgId, contactName: name, birthday: mmdd },
+        });
+
+        if (existing) {
+          results.push({ name, birthday: mmdd, status: "skipped", reason: "Already exists" });
+          continue;
+        }
+
         await prisma.scheduledMessage.create({
           data: {
             organizationId: orgId,
             contactName: name,
-            phoneNumber: row.phone || "",
+            phoneNumber: phone,
             birthday: mmdd,
-            messageTemplate: messageTemplate.trim(),
+            messageTemplate: "", // Templates now come from BirthdayConfig
             scheduledTime: "08:05",
             recurrence: "annual",
           },
@@ -119,7 +208,7 @@ router.patch("/:id", async (req: Request, res: Response) => {
   try {
     const orgId = req.user!.organizationId;
     const { id } = req.params;
-    const { isActive, messageTemplate } = req.body;
+    const { isActive } = req.body;
 
     const msg = await prisma.scheduledMessage.findFirst({
       where: { id, organizationId: orgId },
@@ -132,7 +221,6 @@ router.patch("/:id", async (req: Request, res: Response) => {
 
     const data: Record<string, unknown> = {};
     if (typeof isActive === "boolean") data.isActive = isActive;
-    if (typeof messageTemplate === "string" && messageTemplate.trim()) data.messageTemplate = messageTemplate.trim();
 
     const updated = await prisma.scheduledMessage.update({
       where: { id },
@@ -146,15 +234,9 @@ router.patch("/:id", async (req: Request, res: Response) => {
   }
 });
 
-/**
- * Parse various birthday formats into MM-DD:
- * - MM/DD, MM-DD
- * - MM/DD/YYYY, MM-DD-YYYY
- * - YYYY-MM-DD, YYYY/MM/DD
- * - M/D, M-D (single digit month/day)
- */
+// ─── Helpers ──────────────────────────────────────────────────
+
 function parseBirthdayToMMDD(raw: string): string | null {
-  // Try YYYY-MM-DD or YYYY/MM/DD
   let match = raw.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
   if (match) {
     const mm = match[2].padStart(2, "0");
@@ -162,7 +244,6 @@ function parseBirthdayToMMDD(raw: string): string | null {
     if (isValidMMDD(mm, dd)) return `${mm}-${dd}`;
   }
 
-  // Try MM/DD/YYYY or MM-DD-YYYY
   match = raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
   if (match) {
     const mm = match[1].padStart(2, "0");
@@ -170,7 +251,6 @@ function parseBirthdayToMMDD(raw: string): string | null {
     if (isValidMMDD(mm, dd)) return `${mm}-${dd}`;
   }
 
-  // Try MM/DD or MM-DD
   match = raw.match(/^(\d{1,2})[\/\-](\d{1,2})$/);
   if (match) {
     const mm = match[1].padStart(2, "0");
