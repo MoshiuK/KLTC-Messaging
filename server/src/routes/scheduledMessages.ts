@@ -89,6 +89,70 @@ router.put("/config", async (req: Request, res: Response) => {
 
 // ─── Scheduled Messages CRUD ──────────────────────────────────
 
+// POST /api/scheduled-messages/sync — auto-create birthday entries from existing contacts
+router.post("/sync", async (req: Request, res: Response) => {
+  try {
+    const orgId = req.user!.organizationId;
+
+    // Get all active contacts that have a birthday set
+    const contacts = await prisma.contact.findMany({
+      where: {
+        organizationId: orgId,
+        isActive: true,
+        birthday: { not: null },
+      },
+    });
+
+    if (contacts.length === 0) {
+      res.json({ summary: { total: 0, created: 0, skipped: 0 }, results: [] });
+      return;
+    }
+
+    const results: Array<{ name: string; birthday: string; status: "created" | "skipped"; reason?: string }> = [];
+
+    for (const contact of contacts) {
+      if (!contact.birthday) continue;
+
+      // Convert YYYY-MM-DD to MM-DD
+      const mmdd = contact.birthday.length === 10 ? contact.birthday.slice(5) : contact.birthday;
+
+      // Check for existing entry
+      const existing = await prisma.scheduledMessage.findFirst({
+        where: { organizationId: orgId, contactName: contact.fullName, birthday: mmdd },
+      });
+
+      if (existing) {
+        results.push({ name: contact.fullName, birthday: mmdd, status: "skipped", reason: "Already exists" });
+        continue;
+      }
+
+      await prisma.scheduledMessage.create({
+        data: {
+          organizationId: orgId,
+          contactName: contact.fullName,
+          phoneNumber: contact.phoneNumber,
+          birthday: mmdd,
+          messageTemplate: "",
+          scheduledTime: "08:05",
+          recurrence: "annual",
+        },
+      });
+      results.push({ name: contact.fullName, birthday: mmdd, status: "created" });
+    }
+
+    const summary = {
+      total: results.length,
+      created: results.filter((r) => r.status === "created").length,
+      skipped: results.filter((r) => r.status === "skipped").length,
+    };
+
+    res.status(201).json({ summary, results });
+  } catch (err) {
+    console.error("Sync birthdays from contacts error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // GET /api/scheduled-messages — list all scheduled birthday entries
 router.get("/", async (req: Request, res: Response) => {
   try {

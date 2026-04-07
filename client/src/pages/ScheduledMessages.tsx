@@ -63,6 +63,8 @@ export default function ScheduledMessages() {
   const [uploadResult, setUploadResult] = useState<UploadResponse | null>(null);
   const [uploadError, setUploadError] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<{ created: number; skipped: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -160,6 +162,28 @@ export default function ScheduledMessages() {
       loadMessages();
     } catch (err: any) {
       setError(err.message);
+    }
+  };
+
+  const handleSyncFromContacts = async () => {
+    setSyncing(true);
+    setSyncResult(null);
+    setError("");
+    try {
+      const result = await api.syncBirthdaysFromContacts();
+      setSyncResult(result.summary);
+      loadMessages();
+      if (result.summary.created > 0) {
+        setConfigSuccess(`Synced ${result.summary.created} birthday(s) from contacts!`);
+        setTimeout(() => setConfigSuccess(""), 3000);
+      } else {
+        setConfigSuccess("All contacts with birthdays are already in the list.");
+        setTimeout(() => setConfigSuccess(""), 3000);
+      }
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setSyncing(false);
     }
   };
 
@@ -261,11 +285,16 @@ export default function ScheduledMessages() {
       </div>
 
       {/* ─── Birthday CSV Upload ─── */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 24, marginBottom: 12 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 24, marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
         <h3 style={{ margin: 0 }}>Birthday List ({messages.length} entries)</h3>
-        <button onClick={() => { resetUpload(); setShowUpload(!showUpload); }} style={btnPrimary}>
-          {showUpload ? "Cancel" : "Upload Birthday CSV"}
-        </button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={handleSyncFromContacts} disabled={syncing} style={{ ...btnPrimary, background: "#2c3e50", opacity: syncing ? 0.7 : 1 }}>
+            {syncing ? "Syncing..." : "Sync from Contacts"}
+          </button>
+          <button onClick={() => { resetUpload(); setShowUpload(!showUpload); }} style={btnPrimary}>
+            {showUpload ? "Cancel" : "Upload Birthday CSV"}
+          </button>
+        </div>
       </div>
 
       {showUpload && (

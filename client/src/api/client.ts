@@ -179,6 +179,9 @@ export const api = {
   uploadBirthdays: (rows: Array<{ name: string; birthday: string; phone?: string }>) =>
     request<any>("/scheduled-messages/upload", { method: "POST", body: JSON.stringify({ rows }) }, 0),
 
+  syncBirthdaysFromContacts: () =>
+    request<any>("/scheduled-messages/sync", { method: "POST" }, 0),
+
   deleteScheduledMessage: (id: string) =>
     request<any>(`/scheduled-messages/${encodeURIComponent(id)}`, { method: "DELETE" }, 0),
 
