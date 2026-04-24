@@ -17,6 +17,7 @@ import Notifications from "./pages/Notifications";
 import Settings from "./pages/Settings";
 import UserManagement from "./pages/UserManagement";
 import ScheduledMessages from "./pages/ScheduledMessages";
+import DirectMessage from "./pages/DirectMessage";
 
 function AppRoutes() {
   const { user, loading } = useAuth();
@@ -42,6 +43,7 @@ function AppRoutes() {
         <Route path="/contacts" element={<Contacts />} />
         <Route path="/groups" element={<Groups />} />
         <Route path="/groups/:id" element={<GroupDetail />} />
+        <Route path="/direct-message" element={<DirectMessage />} />
         <Route path="/group-message" element={<GroupMessage />} />
         <Route path="/scheduled-messages" element={<ScheduledMessages />} />
         <Route path="/voice-call" element={<VoiceCall />} />

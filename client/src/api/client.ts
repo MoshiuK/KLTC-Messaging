@@ -216,6 +216,18 @@ export const api = {
   deleteUser: (id: string) =>
     request<any>(`/users/${encodeURIComponent(id)}`, { method: "DELETE" }, 0),
 
+  // Message History
+  getMessageHistory: (params?: Record<string, string>) => {
+    const qs = params ? "?" + new URLSearchParams(params).toString() : "";
+    return request<any>(`/sms/history${qs}`);
+  },
+
+  // Provider
+  getProvider: () => request<any>("/org/provider"),
+
+  setProvider: (smsProvider: string) =>
+    request<any>("/org/provider", { method: "PATCH", body: JSON.stringify({ smsProvider }) }, 0),
+
   // Branding
   getBranding: () => request<any>("/org/branding"),
 

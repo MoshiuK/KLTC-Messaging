@@ -148,7 +148,7 @@ export default function GroupMessage() {
                         {r.status}
                       </span>
                     </td>
-                    <td style={tdStyle}>{r.reason || r.twilioSid || "-"}</td>
+                    <td style={tdStyle}>{r.reason || r.providerId || "-"}</td>
                   </tr>
                 ))}
               </tbody>

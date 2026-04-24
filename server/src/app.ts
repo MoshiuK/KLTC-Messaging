@@ -52,7 +52,15 @@ const apiLimiter = rateLimit({
 
 // Health check (no rate limit)
 app.get("/api/health", (_req, res) => {
-  res.json({ status: "ok", timestamp: new Date().toISOString() });
+  res.json({
+    status: "ok",
+    timestamp: new Date().toISOString(),
+    telnyxConfigured: !!(process.env.TELNYX_API_KEY && process.env.TELNYX_PHONE_NUMBER),
+    telnyxPhone: process.env.TELNYX_PHONE_NUMBER ? "set" : "missing",
+    telnyxApiKey: process.env.TELNYX_API_KEY ? "set" : "missing",
+    telnyxProfileId: process.env.TELNYX_MESSAGING_PROFILE_ID ? "set" : "missing",
+    dotenvLoaded: !!process.env.TELNYX_API_KEY,
+  });
 });
 
 // Apply rate limiters
@@ -72,6 +80,14 @@ app.use("/api/users", userRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/scheduled-messages", scheduledMessageRoutes);
 app.use("/api/admin", adminRoutes);
+
+// Telnyx webhook alias — matches the URL configured in Telnyx portal.
+// Routes inbound messages and status updates to the existing sms handlers.
+app.post("/api/webhooks/sms", (req, res, next) => {
+  const eventType = req.body?.data?.event_type || "";
+  req.url = eventType === "message.received" ? "/inbound" : "/status";
+  smsRoutes(req, res, next);
+});
 
 // Error handler
 app.use(errorHandler);

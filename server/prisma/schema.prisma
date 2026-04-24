@@ -19,6 +19,7 @@ model Organization {
   monthlyMessageLimit Int?
   contactLimit        Int?
   userLimit           Int?
+  smsProvider    String   @default("telnyx") // "twilio" or "telnyx"
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -26,6 +27,7 @@ model Organization {
   contacts            Contact[]
   contactGroups       ContactGroup[]
   contactStatusEvents ContactStatusEvent[]
+  telnyxConfigs       TelnyxConfig[]
   twilioConfigs       TwilioConfig[]
   conversations       Conversation[]
   voiceCallTwimls     VoiceCallTwiml[]
@@ -62,6 +64,21 @@ model PasswordResetToken {
 
   @@index([token])
   @@index([userId])
+}
+
+model TelnyxConfig {
+  id                 String   @id @default(cuid())
+  organizationId     String
+  apiKey             String
+  phoneNumber        String
+  messagingProfileId String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
+  @@index([phoneNumber])
 }
 
 model TwilioConfig {
@@ -141,7 +158,7 @@ model ContactStatusEvent {
   eventType      String
   source         String
   detail         String?
-  twilioSid      String?
+  providerId     String?
   errorCode      String?
   createdAt      DateTime @default(now())
 
@@ -150,7 +167,7 @@ model ContactStatusEvent {
 
   @@index([organizationId])
   @@index([contactId])
-  @@index([twilioSid])
+  @@index([providerId])
   @@index([createdAt])
 }
 
@@ -175,7 +192,7 @@ model Message {
   body           String
   type           String   @default("sms")
   status         String?
-  twilioSid      String?  @unique
+  providerId     String?  @unique
   fromNumber     String
   toNumber       String
   mediaUrl       String?
@@ -189,7 +206,7 @@ model Message {
   conversation Conversation @relation(fields: [conversationId], references: [id])
 
   @@index([conversationId])
-  @@index([twilioSid])
+  @@index([providerId])
   @@index([createdAt])
 }
 
@@ -226,3 +243,4 @@ model VoiceCallTwiml {
 
   @@index([organizationId])
 }
+
