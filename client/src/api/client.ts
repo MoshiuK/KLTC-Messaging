@@ -207,24 +207,38 @@ export const api = {
   },
 
   // Scheduled Messages
-  getScheduledMessages: (status?: string) => {
-    const qs = status ? `?status=${status}` : "";
-    return request<any[]>(`/scheduled${qs}`);
-  },
+  getScheduledMessages: () => request<any[]>("/scheduled-messages"),
 
-  createScheduledMessage: (data: {
-    groupId?: string;
-    contactId?: string;
-    body: string;
-    mediaUrl?: string;
-    scheduledAt: string;
-    recurrence?: string;
-    type?: string;
-  }) =>
-    request<any>("/scheduled", { method: "POST", body: JSON.stringify(data) }, 0),
+  uploadBirthdays: (rows: Array<{ name: string; birthday: string; phone?: string }>) =>
+    request<any>("/scheduled-messages/upload", { method: "POST", body: JSON.stringify({ rows }) }, 0),
 
-  cancelScheduledMessage: (id: string) =>
-    request<any>(`/scheduled/${encodeURIComponent(id)}`, { method: "DELETE" }, 0),
+  syncBirthdaysFromContacts: () =>
+    request<any>("/scheduled-messages/sync", { method: "POST" }, 0),
+
+  deleteScheduledMessage: (id: string) =>
+    request<any>(`/scheduled-messages/${encodeURIComponent(id)}`, { method: "DELETE" }, 0),
+
+  updateScheduledMessage: (id: string, data: Record<string, unknown>) =>
+    request<any>(`/scheduled-messages/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(data) }, 0),
+
+  // Birthday Config
+  getBirthdayConfig: () => request<any>("/scheduled-messages/config"),
+
+  updateBirthdayConfig: (data: Record<string, unknown>) =>
+    request<any>("/scheduled-messages/config", { method: "PUT", body: JSON.stringify(data) }, 0),
+
+  // Daily Scripture
+  getDailyScriptures: () => request<any[]>("/daily-scripture"),
+
+  createDailyScripture: (data: { groupId: string; body: string; sendTime: string; startDate: string; endDate: string }) =>
+    request<any>("/daily-scripture", { method: "POST", body: JSON.stringify(data) }, 0),
+
+  updateDailyScripture: (id: string, data: Record<string, unknown>) =>
+    request<any>(`/daily-scripture/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(data) }, 0),
+
+  deleteDailyScripture: (id: string) =>
+    request<any>(`/daily-scripture/${encodeURIComponent(id)}`, { method: "DELETE" }, 0),
+
 
   // Provider
   getProvider: () => request<any>("/org/provider"),

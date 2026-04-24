@@ -32,6 +32,8 @@ model Organization {
   conversations       Conversation[]
   voiceCallTwimls     VoiceCallTwiml[]
   scheduledMessages   ScheduledMessage[]
+  birthdayConfig       BirthdayConfig?
+  dailyScriptures      DailyScripture[]
 }
 
 model User {
@@ -225,20 +227,55 @@ model VoiceCallTwiml {
   @@index([organizationId])
 }
 
+
 model ScheduledMessage {
   id             String   @id @default(cuid())
   organizationId String
-  createdByUserId String
+  contactName    String
+  phoneNumber    String
+  birthday       String   // MM-DD format
+  messageTemplate String
+  scheduledTime  String   @default("08:05") // HH:MM format
+  recurrence     String   @default("annual")
+  isActive       Boolean  @default(true)
+  lastSentYear   Int?     // Track last year sent to avoid duplicates
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
+  @@index([birthday])
+}
+
+model BirthdayConfig {
+  id             String   @id @default(cuid())
+  organizationId String   @unique
   groupId        String?
-  contactId      String?
+  template1      String   @default("Happy Birthday, {name}! Wishing you a wonderful day!")
+  template2      String   @default("It's {name}'s birthday today! Let's wish them a great one!")
+  template3      String   @default("Happy Birthday to {name}! Hope your day is amazing!")
+  template4      String   @default("Wishing the happiest of birthdays to {name}! Enjoy your special day!")
+  template5      String   @default("Birthday shoutout to {name}! Have an incredible birthday!")
+  rotationIndex  Int      @default(0)
+  isEnabled      Boolean  @default(false)
+  scheduledTime  String   @default("08:05")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+}
+
+model DailyScripture {
+  id             String   @id @default(cuid())
+  organizationId String
+  groupId        String
   body           String
-  mediaUrl       String?
-  scheduledAt    DateTime
-  recurrence     String?  // "none", "daily", "weekly", "monthly", "yearly"
-  status         String   @default("pending") // "pending", "sent", "failed", "cancelled"
-  type           String   @default("group") // "group", "direct", "birthday"
-  sentAt         DateTime?
-  errorMessage   String?
+  sendTime       String   @default("08:00") // HH:MM format
+  startDate      String   // YYYY-MM-DD
+  endDate        String   // YYYY-MM-DD
+  status         String   @default("active") // active, cancelled, completed
+  lastSentDate   String?  // YYYY-MM-DD of last successful send
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -246,5 +283,4 @@ model ScheduledMessage {
 
   @@index([organizationId])
   @@index([status])
-  @@index([scheduledAt])
 }
