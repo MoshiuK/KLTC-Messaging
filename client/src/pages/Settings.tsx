@@ -8,7 +8,7 @@ export default function Settings() {
   const { user } = useAuth();
   const { branding, refreshBranding } = useBranding();
   const [form, setForm] = useState<BrandingConfig>({ ...branding });
-  const [saving, setSaving] = useState(false);
+  const [providerInfo,setProviderInfo]=useState<any>(null);const [switchingProvider,setSwitchingProvider]=useState(false);useEffect(()=>{api.getProvider().then(setProviderInfo).catch(()=>{})},[]);const handleProviderSwitch=async(p:string)=>{setSwitchingProvider(true);try{await api.setProvider(p);setProviderInfo((prev:any)=>({...prev,smsProvider:p}));setSuccess("Switched to "+(p==="twilio"?"Twilio":"Telnyx")+"!");}catch(err:any){setError(err.message)}finally{setSwitchingProvider(false)}};const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
 
@@ -58,7 +58,7 @@ export default function Settings() {
       {error && <div style={errorBox}>{error}</div>}
       {success && <div style={successBox}>{success}</div>}
 
-      <div style={{ display: "flex", gap: 24, alignItems: "flex-start", flexWrap: "wrap" }}>
+      {providerInfo&&<div style={{background:"#fff",padding:20,borderRadius:8,boxShadow:"0 1px 3px rgba(0,0,0,0.1)",marginBottom:24}}><h3 style={{marginTop:0}}>SMS / Voice Provider</h3><div style={{display:"flex",gap:16,marginBottom:16}}><div onClick={()=>!switchingProvider&&providerInfo.twilioConfigured&&handleProviderSwitch("twilio")} style={{flex:1,padding:20,borderRadius:8,border:"2px solid "+(providerInfo.smsProvider==="twilio"?"#e74c3c":"#ddd"),background:providerInfo.smsProvider==="twilio"?"#fef5f5":"#fff",cursor:providerInfo.twilioConfigured?"pointer":"not-allowed",opacity:providerInfo.twilioConfigured?1:0.5,textAlign:"center"}}><div style={{fontSize:20,fontWeight:700,color:providerInfo.smsProvider==="twilio"?"#e74c3c":"#333"}}>Twilio</div><div style={{fontSize:12,color:"#666",marginTop:4}}>{providerInfo.twilioConfigured?"Configured":"Not configured"}</div>{providerInfo.smsProvider==="twilio"&&<div style={{marginTop:8,fontSize:12,color:"#e74c3c",fontWeight:600}}>Active</div>}</div><div onClick={()=>!switchingProvider&&providerInfo.telnyxConfigured&&handleProviderSwitch("telnyx")} style={{flex:1,padding:20,borderRadius:8,border:"2px solid "+(providerInfo.smsProvider==="telnyx"?"#27ae60":"#ddd"),background:providerInfo.smsProvider==="telnyx"?"#f0faf4":"#fff",cursor:providerInfo.telnyxConfigured?"pointer":"not-allowed",opacity:providerInfo.telnyxConfigured?1:0.5,textAlign:"center"}}><div style={{fontSize:20,fontWeight:700,color:providerInfo.smsProvider==="telnyx"?"#27ae60":"#333"}}>Telnyx</div><div style={{fontSize:12,color:"#666",marginTop:4}}>{providerInfo.telnyxConfigured?"Configured":"Not configured"}</div>{providerInfo.smsProvider==="telnyx"&&<div style={{marginTop:8,fontSize:12,color:"#27ae60",fontWeight:600}}>Active</div>}</div></div></div>}<div style={{ display: "flex", gap: 24, alignItems: "flex-start", flexWrap: "wrap" }}>
         {/* Form */}
         <form onSubmit={handleSave} style={{ ...formCard, flex: "1 1 340px", minWidth: 300 }}>
           <h3 style={{ marginTop: 0 }}>Branding</h3>

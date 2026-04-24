@@ -11,6 +11,7 @@ import Dashboard from "./pages/Dashboard";
 import Contacts from "./pages/Contacts";
 import Groups from "./pages/Groups";
 import GroupDetail from "./pages/GroupDetail";
+import DirectMessage from "./pages/DirectMessage";
 import GroupMessage from "./pages/GroupMessage";
 import VoiceCall from "./pages/VoiceCall";
 import Notifications from "./pages/Notifications";
@@ -43,6 +44,7 @@ function AppRoutes() {
         <Route path="/contacts" element={<Contacts />} />
         <Route path="/groups" element={<Groups />} />
         <Route path="/groups/:id" element={<GroupDetail />} />
+        <Route path="/direct-message" element={<DirectMessage />} />
         <Route path="/group-message" element={<GroupMessage />} />
         <Route path="/scheduled-messages" element={<ScheduledMessages />} />
         <Route path="/daily-scripture" element={<DailyScripture />} />

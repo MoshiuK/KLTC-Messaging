@@ -98,6 +98,7 @@ export default function Layout() {
         <NavItem to="/" label="Dashboard" activeBg={activeNavBg} onClick={() => setSidebarOpen(false)} />
         <NavItem to="/contacts" label="Contacts" activeBg={activeNavBg} onClick={() => setSidebarOpen(false)} />
         <NavItem to="/groups" label="Groups" activeBg={activeNavBg} onClick={() => setSidebarOpen(false)} />
+        <NavItem to="/direct-message" label="Direct Message" activeBg={activeNavBg} onClick={() => setSidebarOpen(false)} />
         <NavItem to="/group-message" label="Group Message" activeBg={activeNavBg} onClick={() => setSidebarOpen(false)} />
         <NavItem to="/scheduled-messages" label="Scheduled Messages" activeBg={activeNavBg} onClick={() => setSidebarOpen(false)} />
         <NavItem to="/daily-scripture" label="Daily Scripture" activeBg={activeNavBg} onClick={() => setSidebarOpen(false)} />

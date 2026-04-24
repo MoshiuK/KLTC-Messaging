@@ -15,6 +15,7 @@ model Organization {
   primaryColor   String?
   secondaryColor String?
   accentColor    String?
+  smsProvider    String   @default("twilio")
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

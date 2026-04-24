@@ -238,6 +238,8 @@ export const api = {
     request<any>(`/users/${encodeURIComponent(id)}`, { method: "DELETE" }, 0),
 
   // Branding
+  getProvider: () => request<any>("/org/provider"),
+  setProvider: (smsProvider: string) => request<any>("/org/provider", { method: "PATCH", body: JSON.stringify({ smsProvider }) }, 0),
   getBranding: () => request<any>("/org/branding"),
 
   updateBranding: (data: Record<string, unknown>) =>

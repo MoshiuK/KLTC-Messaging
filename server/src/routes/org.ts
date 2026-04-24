@@ -75,3 +75,41 @@ router.patch("/branding", requireAuth, requireAdmin, async (req: Request, res: R
 });
 
 export default router;
+
+// GET /api/org/provider — get SMS provider config
+router.get("/provider", requireAuth, async (req: any, res: any) => {
+  try {
+    const orgId = req.user!.organizationId;
+    const org = await prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { smsProvider: true },
+    });
+    const hasTwilioEnv = !!(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE_NUMBER);
+    const hasTelnyxEnv = !!(process.env.TELNYX_API_KEY && process.env.TELNYX_PHONE_NUMBER);
+    res.json({
+      smsProvider: org?.smsProvider || "twilio",
+      twilioConfigured: hasTwilioEnv,
+      telnyxConfigured: hasTelnyxEnv,
+    });
+  } catch (err) {
+    console.error("Get provider error:", err);
+    res.status(500).json({ error: "Failed to fetch provider config" });
+  }
+});
+
+// PATCH /api/org/provider — switch SMS provider
+router.patch("/provider", requireAuth, async (req: any, res: any) => {
+  try {
+    const orgId = req.user!.organizationId;
+    const { smsProvider } = req.body;
+    if (!smsProvider || !["twilio", "telnyx"].includes(smsProvider)) {
+      res.status(400).json({ error: "smsProvider must be 'twilio' or 'telnyx'" });
+      return;
+    }
+    await prisma.organization.update({ where: { id: orgId }, data: { smsProvider } });
+    res.json({ smsProvider, message: "Switched to " + smsProvider });
+  } catch (err) {
+    console.error("Update provider error:", err);
+    res.status(500).json({ error: "Failed to update provider" });
+  }
+});

@@ -3,3 +3,10 @@ dist/
 *.db
 *.db-journal
 .env
+ecosystem.config.cjs
+.env.bak
+**/.env.bak
+*.db.backup-*
+*.bak.*
+server/kltc-messaging-client@*
+server/tsc
