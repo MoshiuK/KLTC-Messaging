@@ -7,7 +7,14 @@ Twilio SMS/voice messaging with white-label org branding. Contact groups, group 
 TypeScript, Twilio API, client/server monorepo
 
 ## Site
-text.kltconnect.com
+- text.kltconnect.com
+- www.text.kltconnect.com
+
+## Dashboard Routing
+- Dashboard: dashboard.knoxmediagroupinc.org
+- Config: text-kltconnect
+- Hosts: text.kltconnect.com, www.text.kltconnect.com
+- Target: 127.0.0.1:5173
 
 ## Structure
 - `client/` — Frontend
