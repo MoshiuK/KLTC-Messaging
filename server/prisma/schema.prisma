@@ -16,6 +16,10 @@ model Organization {
   secondaryColor String?
   accentColor    String?
   smsProvider    String   @default("telnyx") // "twilio" or "telnyx"
+  isActive       Boolean  @default(true)
+  monthlyMessageLimit Int?
+  contactLimit        Int?
+  userLimit           Int?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

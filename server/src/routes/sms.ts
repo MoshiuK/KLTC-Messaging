@@ -3,6 +3,7 @@ import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/auth";
 import { directSmsSchema, groupSendSchema } from "../lib/validation";
 import { sendSms } from "../services/messaging";
+import { assertCanSendMessages, LimitExceededError } from "../lib/limits";
 
 const router = Router();
 
@@ -66,6 +67,8 @@ router.post("/send", requireAuth, async (req: Request, res: Response) => {
     const orgId = req.user!.organizationId;
     const data = directSmsSchema.parse(req.body);
 
+    await assertCanSendMessages(orgId, 1);
+
     // Send SMS/MMS
     const result = await sendSms(orgId, data.to, data.body, {
       mediaUrl: data.mediaUrl,
@@ -102,6 +105,10 @@ router.post("/send", requireAuth, async (req: Request, res: Response) => {
 
     res.json({ message, providerId: result.providerId });
   } catch (err) {
+    if (err instanceof LimitExceededError) {
+      res.status(err.status).json({ error: err.message, limitType: err.limitType, current: err.current, limit: err.limit });
+      return;
+    }
     if (err instanceof Error && err.name === "ZodError") {
       res.status(400).json({ error: "Validation error", details: err });
       return;
@@ -159,6 +166,8 @@ router.post("/send-group", requireAuth, async (req: Request, res: Response) => {
       }
     }
 
+    await assertCanSendMessages(orgId, toSend.length);
+
     // Send in batches with concurrency limit
     const sendResults = await processBatch(toSend, BATCH_CONCURRENCY, async (member) => {
       const contact = member.contact;
@@ -213,6 +222,10 @@ router.post("/send-group", requireAuth, async (req: Request, res: Response) => {
 
     res.json({ summary, results });
   } catch (err) {
+    if (err instanceof LimitExceededError) {
+      res.status(err.status).json({ error: err.message, limitType: err.limitType, current: err.current, limit: err.limit });
+      return;
+    }
     if (err instanceof Error && err.name === "ZodError") {
       res.status(400).json({ error: "Validation error", details: err });
       return;
@@ -274,6 +287,8 @@ router.post("/send-birthday", requireAuth, async (req: Request, res: Response) =
       }
     }
 
+    await assertCanSendMessages(orgId, toSend.length);
+
     const sendResults = await processBatch(toSend, BATCH_CONCURRENCY, async (member) => {
       const contact = member.contact;
       const sendResult = await sendSms(orgId, contact.phoneNumber, body, {
@@ -326,6 +341,10 @@ router.post("/send-birthday", requireAuth, async (req: Request, res: Response) =
 
     res.json({ summary, results });
   } catch (err) {
+    if (err instanceof LimitExceededError) {
+      res.status(err.status).json({ error: err.message, limitType: err.limitType, current: err.current, limit: err.limit });
+      return;
+    }
     console.error("Birthday send error:", err);
     const detail = err instanceof Error ? err.message : "Unknown error";
     res.status(500).json({ error: "Internal server error", detail });

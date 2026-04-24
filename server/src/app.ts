@@ -10,6 +10,7 @@ import orgRoutes from "./routes/org";
 import userRoutes from "./routes/users";
 import notificationRoutes from "./routes/notifications";
 import scheduledRoutes from "./routes/scheduled";
+import adminRoutes from "./routes/admin";
 import { errorHandler } from "./middleware/errorHandler";
 
 const app = express();
@@ -78,6 +79,7 @@ app.use("/api/org", orgRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/scheduled", scheduledRoutes);
+app.use("/api/admin", adminRoutes);
 
 // Telnyx webhook alias — matches the URL configured in Telnyx portal
 // Routes inbound messages and status updates to the correct handlers
