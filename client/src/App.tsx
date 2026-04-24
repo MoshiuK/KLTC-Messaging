@@ -18,6 +18,7 @@ import Settings from "./pages/Settings";
 import UserManagement from "./pages/UserManagement";
 import ScheduledMessages from "./pages/ScheduledMessages";
 import DirectMessage from "./pages/DirectMessage";
+import Organizations from "./pages/Organizations";
 import DailyScripture from "./pages/DailyScripture";
 
 function AppRoutes() {
@@ -48,6 +49,7 @@ function AppRoutes() {
         <Route path="/group-message" element={<GroupMessage />} />
         <Route path="/scheduled-messages" element={<ScheduledMessages />} />
             <Route path="/daily-scripture" element={<DailyScripture />} />
+            <Route path="/organizations" element={<Organizations />} />
         <Route path="/voice-call" element={<VoiceCall />} />
         <Route path="/notifications" element={<Notifications />} />
         <Route path="/users" element={<UserManagement />} />

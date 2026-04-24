@@ -111,3 +111,33 @@ export interface BrandingConfig {
   secondaryColor: string;
   accentColor: string;
 }
+
+export interface Organization {
+  id: string;
+  name: string;
+  isActive: boolean;
+  monthlyMessageLimit: number | null;
+  contactLimit: number | null;
+  userLimit: number | null;
+  createdAt: string;
+  usage: { users: number; contacts: number; messagesThisMonth: number };
+}
+
+export interface CreateOrganizationInput {
+  organizationName: string;
+  adminEmail: string;
+  adminFirstName: string;
+  adminLastName: string;
+  adminPassword: string;
+  monthlyMessageLimit?: number | null;
+  contactLimit?: number | null;
+  userLimit?: number | null;
+}
+
+export interface UpdateOrganizationInput {
+  name?: string;
+  isActive?: boolean;
+  monthlyMessageLimit?: number | null;
+  contactLimit?: number | null;
+  userLimit?: number | null;
+}

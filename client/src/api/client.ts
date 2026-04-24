@@ -254,4 +254,12 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify(data),
     }, 0),
+  // Admin: Organizations (superadmin only)
+  listOrganizations: () => request<any[]>("/admin/organizations"),
+
+  createOrganization: (data: Record<string, unknown>) =>
+    request<any>("/admin/organizations", { method: "POST", body: JSON.stringify(data) }, 0),
+
+  updateOrganization: (id: string, data: Record<string, unknown>) =>
+    request<any>(`/admin/organizations/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(data) }, 0),
 };
