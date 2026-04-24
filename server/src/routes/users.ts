@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "../lib/prisma";
 import { requireAuth, requireAdmin } from "../middleware/auth";
 import { createUserSchema, updateUserSchema } from "../lib/validation";
+import { assertCanAddUser, LimitExceededError } from "../lib/limits";
 
 const router = Router();
 
@@ -49,6 +50,8 @@ router.post("/", async (req: Request, res: Response) => {
       return;
     }
 
+    await assertCanAddUser(orgId);
+
     const passwordHash = await bcrypt.hash(data.password, 10);
 
     const user = await prisma.user.create({
@@ -72,6 +75,10 @@ router.post("/", async (req: Request, res: Response) => {
 
     res.status(201).json(user);
   } catch (err) {
+    if (err instanceof LimitExceededError) {
+      res.status(err.status).json({ error: err.message, limitType: err.limitType, current: err.current, limit: err.limit });
+      return;
+    }
     if (err instanceof Error && err.name === "ZodError") {
       res.status(400).json({ error: "Validation error", details: err });
       return;

@@ -118,6 +118,26 @@ export const groupVoiceCallSchema = z.object({
   language: z.string().optional().default("en-US"),
 });
 
+// Platform admin (super-admin) schemas
+export const createOrganizationSchema = z.object({
+  organizationName: z.string().min(1).max(200),
+  adminEmail: z.string().email(),
+  adminPassword: z.string().min(6),
+  adminFirstName: z.string().min(1),
+  adminLastName: z.string().min(1),
+  monthlyMessageLimit: z.number().int().positive().optional().nullable(),
+  contactLimit: z.number().int().positive().optional().nullable(),
+  userLimit: z.number().int().positive().optional().nullable(),
+});
+
+export const updateOrganizationSchema = z.object({
+  name: z.string().min(1).max(200).optional(),
+  isActive: z.boolean().optional(),
+  monthlyMessageLimit: z.number().int().positive().optional().nullable(),
+  contactLimit: z.number().int().positive().optional().nullable(),
+  userLimit: z.number().int().positive().optional().nullable(),
+});
+
 // Branding schema
 export const updateBrandingSchema = z.object({
   appName: z.string().min(1).max(100).optional(),

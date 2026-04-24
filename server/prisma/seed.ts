@@ -4,9 +4,32 @@ import bcrypt from "bcryptjs";
 const prisma = new PrismaClient();
 
 async function main() {
-  // Create a demo organization
+  // Platform-level org that owns the super-admin. Super-admins can manage every
+  // tenant via /api/admin/organizations regardless of which org they belong to.
+  const platformOrg = await prisma.organization.create({
+    data: { name: "Platform" },
+  });
+
+  const superPasswordHash = await bcrypt.hash("superadmin123", 10);
+  await prisma.user.create({
+    data: {
+      organizationId: platformOrg.id,
+      email: "superadmin@kltc.com",
+      passwordHash: superPasswordHash,
+      firstName: "Super",
+      lastName: "Admin",
+      role: "superadmin",
+    },
+  });
+
+  // Create a demo tenant organization with sample limits
   const org = await prisma.organization.create({
-    data: { name: "KLTC Demo Org" },
+    data: {
+      name: "KLTC Demo Org",
+      monthlyMessageLimit: 1000,
+      contactLimit: 500,
+      userLimit: 5,
+    },
   });
 
   // Create admin user (password: admin123)
@@ -120,7 +143,8 @@ async function main() {
   });
 
   console.log("Seed complete!");
-  console.log(`  Admin login: admin@kltc.com / admin123`);
+  console.log(`  Super-admin login: superadmin@kltc.com / superadmin123`);
+  console.log(`  Org admin login: admin@kltc.com / admin123`);
   console.log(`  Organization: ${org.name}`);
   console.log(`  Contacts: ${contacts.length}`);
   console.log(`  Group: ${group.name} (${contacts.length} members)`);

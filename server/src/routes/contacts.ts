@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/auth";
 import { contactCreateSchema, contactUpdateSchema } from "../lib/validation";
+import { assertCanAddContacts, LimitExceededError } from "../lib/limits";
 
 const router = Router();
 
@@ -97,6 +98,8 @@ router.post("/upload", async (req: Request, res: Response) => {
       return;
     }
 
+    await assertCanAddContacts(orgId, rows.length);
+
     const results: Array<{ name: string; phone: string; status: "created" | "skipped" | "error"; reason?: string }> = [];
 
     for (const row of rows) {
@@ -172,6 +175,10 @@ router.post("/upload", async (req: Request, res: Response) => {
 
     res.status(201).json({ summary, results });
   } catch (err) {
+    if (err instanceof LimitExceededError) {
+      res.status(err.status).json({ error: err.message, limitType: err.limitType, current: err.current, limit: err.limit });
+      return;
+    }
     console.error("Upload contacts error:", err);
     res.status(500).json({ error: "Internal server error" });
   }
@@ -194,6 +201,8 @@ router.post("/", async (req: Request, res: Response) => {
       return;
     }
 
+    await assertCanAddContacts(orgId, 1);
+
     const contact = await prisma.contact.create({
       data: {
         organizationId: orgId,
@@ -208,6 +217,10 @@ router.post("/", async (req: Request, res: Response) => {
 
     res.status(201).json(contact);
   } catch (err) {
+    if (err instanceof LimitExceededError) {
+      res.status(err.status).json({ error: err.message, limitType: err.limitType, current: err.current, limit: err.limit });
+      return;
+    }
     if (err instanceof Error && err.name === "ZodError") {
       res.status(400).json({ error: "Validation error", details: err });
       return;

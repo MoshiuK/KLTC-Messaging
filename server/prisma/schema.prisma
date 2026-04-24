@@ -15,6 +15,10 @@ model Organization {
   primaryColor   String?
   secondaryColor String?
   accentColor    String?
+  isActive       Boolean  @default(true)
+  monthlyMessageLimit Int?
+  contactLimit        Int?
+  userLimit           Int?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

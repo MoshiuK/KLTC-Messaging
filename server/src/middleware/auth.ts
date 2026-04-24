@@ -47,9 +47,18 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     const token = header.slice(7);
     const payload = jwt.verify(token, JWT_SECRET) as AuthUser;
 
-    const user = await prisma.user.findUnique({ where: { id: payload.id } });
+    const user = await prisma.user.findUnique({
+      where: { id: payload.id },
+      include: { organization: { select: { isActive: true } } },
+    });
     if (!user) {
       res.status(401).json({ error: "User not found" });
+      return;
+    }
+
+    // Super-admins bypass the org-suspended block so they can still manage accounts.
+    if (!user.organization.isActive && user.role !== "superadmin") {
+      res.status(403).json({ error: "Account suspended. Contact support." });
       return;
     }
 
@@ -66,8 +75,16 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 }
 
 export function requireAdmin(req: Request, res: Response, next: NextFunction): void {
-  if (!req.user || req.user.role !== "admin") {
+  if (!req.user || (req.user.role !== "admin" && req.user.role !== "superadmin")) {
     res.status(403).json({ error: "Admin access required" });
+    return;
+  }
+  next();
+}
+
+export function requireSuperAdmin(req: Request, res: Response, next: NextFunction): void {
+  if (!req.user || req.user.role !== "superadmin") {
+    res.status(403).json({ error: "Super admin access required" });
     return;
   }
   next();
