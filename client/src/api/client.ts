@@ -40,8 +40,12 @@ async function request<T>(path: string, options: RequestInit = {}, retries = 2):
       const res = await fetch(`${BASE_URL}${path}`, { ...options, headers });
 
       if (res.status === 401) {
-        window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT));
-        throw new Error("Your session has expired. Please sign in again.");
+        if (token) {
+          window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT));
+          throw new Error("Your session has expired. Please sign in again.");
+        }
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || "Invalid email or password.");
       }
 
       if (!res.ok) {
