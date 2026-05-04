@@ -100,9 +100,19 @@ const fmt = (val: string | number): number => {
 const money = (n: number): string =>
   n.toLocaleString("en-US", { style: "currency", currency: "USD" });
 
+const ROLE_PERMISSIONS = {
+  admin:   { canCreate: true,  canEdit: true,  canDelete: true  },
+  manager: { canCreate: true,  canEdit: true,  canDelete: false },
+  member:  { canCreate: false, canEdit: false, canDelete: false },
+};
+
+const getPerms = (role?: string) =>
+  ROLE_PERMISSIONS[role as keyof typeof ROLE_PERMISSIONS] ?? ROLE_PERMISSIONS.member;
+
 export default function FuneralManager() {
   const { user } = useAuth();
   const storageKey = `funeral_orders_${user?.organizationId ?? "default"}`;
+  const perms = getPerms(user?.role);
 
   const [orders, setOrders] = useState<FuneralOrder[]>([]);
   const [view, setView] = useState<"dashboard" | "list" | "form" | "detail">("dashboard");
@@ -199,6 +209,9 @@ export default function FuneralManager() {
             <div style={styles.logoText}>MEMORIAL MANAGER</div>
             <div style={styles.logoSub}>Remote Operations Console</div>
           </div>
+          <span style={{ ...styles.badge, background: roleColor(user?.role), fontSize: 10, padding: "3px 10px", marginLeft: 8 }}>
+            {(user?.role ?? "member").toUpperCase()}
+          </span>
         </div>
         <nav style={styles.nav}>
           {[
@@ -213,16 +226,18 @@ export default function FuneralManager() {
               {n.label}
             </button>
           ))}
-          <button
-            onClick={() => {
-              setCurrentOrder(emptyOrder());
-              setEditMode(false);
-              setView("form");
-            }}
-            style={styles.newBtn}
-          >
-            + New Order
-          </button>
+          {perms.canCreate && (
+            <button
+              onClick={() => {
+                setCurrentOrder(emptyOrder());
+                setEditMode(false);
+                setView("form");
+              }}
+              style={styles.newBtn}
+            >
+              + New Order
+            </button>
+          )}
         </nav>
       </header>
 
@@ -326,14 +341,16 @@ export default function FuneralManager() {
                             <span style={{ ...styles.badge, background: statusColor(o.status) }}>{o.status}</span>
                           </td>
                           <td style={styles.td} onClick={(e) => e.stopPropagation()}>
-                            <button
-                              style={styles.iconBtn}
-                              onClick={() => {
-                                setCurrentOrder(o);
-                                setEditMode(true);
-                                setView("form");
-                              }}
-                            >✏️</button>
+                            {perms.canEdit && (
+                              <button
+                                style={styles.iconBtn}
+                                onClick={() => {
+                                  setCurrentOrder(o);
+                                  setEditMode(true);
+                                  setView("form");
+                                }}
+                              >✏️</button>
+                            )}
                           </td>
                         </tr>
                       );
@@ -346,7 +363,7 @@ export default function FuneralManager() {
         )}
 
         {/* ORDER FORM */}
-        {view === "form" && currentOrder && (
+        {view === "form" && currentOrder && perms.canCreate && (
           <OrderForm
             order={currentOrder}
             editMode={editMode}
@@ -359,6 +376,8 @@ export default function FuneralManager() {
         {view === "detail" && currentOrder && (
           <OrderDetail
             order={orders.find((o) => o.id === currentOrder.id) || currentOrder}
+            canEdit={perms.canEdit}
+            canDelete={perms.canDelete}
             onEdit={() => {
               setCurrentOrder(orders.find((o) => o.id === currentOrder.id) || currentOrder);
               setEditMode(true);
@@ -525,8 +544,10 @@ function OrderForm({ order, editMode, onSave, onCancel }: {
   );
 }
 
-function OrderDetail({ order, onEdit, onDelete, onStatusChange, onBack }: {
+function OrderDetail({ order, canEdit, canDelete, onEdit, onDelete, onStatusChange, onBack }: {
   order: FuneralOrder;
+  canEdit: boolean;
+  canDelete: boolean;
   onEdit: () => void;
   onDelete: () => void;
   onStatusChange: (s: string) => void;
@@ -546,8 +567,8 @@ function OrderDetail({ order, onEdit, onDelete, onStatusChange, onBack }: {
       <div style={styles.formHeader}>
         <button onClick={onBack} style={styles.backBtn}>← All Orders</button>
         <div style={{ display: "flex", gap: 10 }}>
-          <button onClick={onEdit} style={styles.editBtn}>✏️ Edit</button>
-          <button onClick={onDelete} style={styles.deleteBtn}>🗑️ Delete</button>
+          {canEdit && <button onClick={onEdit} style={styles.editBtn}>✏️ Edit</button>}
+          {canDelete && <button onClick={onDelete} style={styles.deleteBtn}>🗑️ Delete</button>}
         </div>
       </div>
 
@@ -555,8 +576,9 @@ function OrderDetail({ order, onEdit, onDelete, onStatusChange, onBack }: {
         <h2 style={{ ...styles.pageTitle, marginBottom: 0 }}>{order.deceasedName || "Unnamed"}</h2>
         <select
           value={order.status}
-          onChange={(e) => onStatusChange(e.target.value)}
-          style={{ ...styles.input, width: "auto", padding: "6px 12px" }}
+          onChange={(e) => canEdit && onStatusChange(e.target.value)}
+          disabled={!canEdit}
+          style={{ ...styles.input, width: "auto", padding: "6px 12px", opacity: canEdit ? 1 : 0.6 }}
         >
           {STATUS_OPTIONS.map((s) => <option key={s}>{s}</option>)}
         </select>
@@ -645,6 +667,9 @@ function InfoRow({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
+
+const roleColor = (r?: string): string =>
+  ({ admin: "#c96e6e", manager: "#6eb5c9", member: "#888" } as Record<string, string>)[r ?? "member"] ?? "#888";
 
 const statusColor = (s: string): string =>
   ({ Pending: "#c9a96e", "In Progress": "#6eb5c9", Completed: "#6ec98a", Cancelled: "#c96e6e" } as Record<string, string>)[s] || "#888";

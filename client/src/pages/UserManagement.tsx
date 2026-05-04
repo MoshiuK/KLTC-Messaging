@@ -128,6 +128,7 @@ export default function UserManagement() {
               <label style={labelStyle}>Role</label>
               <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} style={inputStyle}>
                 <option value="member">Member</option>
+                <option value="manager">Manager</option>
                 <option value="admin">Admin</option>
               </select>
             </div>
@@ -165,6 +166,7 @@ export default function UserManagement() {
                       style={{ padding: "4px 8px", borderRadius: 4, border: "1px solid #ddd", fontSize: 13 }}
                     >
                       <option value="member">Member</option>
+                      <option value="manager">Manager</option>
                       <option value="admin">Admin</option>
                     </select>
                   </td>

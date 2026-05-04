@@ -85,14 +85,14 @@ export const createUserSchema = z.object({
   password: z.string().min(6, "Password must be at least 6 characters"),
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().min(1, "Last name is required"),
-  role: z.enum(["admin", "member"]).optional().default("member"),
+  role: z.enum(["admin", "manager", "member"]).optional().default("member"),
 });
 
 export const updateUserSchema = z.object({
   firstName: z.string().min(1).optional(),
   lastName: z.string().min(1).optional(),
   email: z.string().email().optional(),
-  role: z.enum(["admin", "member"]).optional(),
+  role: z.enum(["admin", "manager", "member"]).optional(),
 });
 
 // Birthday message schemas
