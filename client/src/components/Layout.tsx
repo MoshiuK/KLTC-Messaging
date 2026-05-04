@@ -25,7 +25,6 @@ export default function Layout() {
 
   return (
     <div style={{ display: "flex", minHeight: "100vh" }}>
-      {/* Mobile hamburger button */}
       <button
         onClick={() => setSidebarOpen(!sidebarOpen)}
         style={{
@@ -46,10 +45,9 @@ export default function Layout() {
         className="mobile-menu-btn"
         aria-label="Toggle menu"
       >
-        {sidebarOpen ? "\u2715" : "\u2630"}
+        {sidebarOpen ? "✕" : "☰"}
       </button>
 
-      {/* Overlay for mobile */}
       {sidebarOpen && (
         <div
           onClick={() => setSidebarOpen(false)}
@@ -95,14 +93,7 @@ export default function Layout() {
           )}
         </div>
 
-        <NavItem to="/" label="Dashboard" activeBg={activeNavBg} onClick={() => setSidebarOpen(false)} />
-        <NavItem to="/contacts" label="Contacts" activeBg={activeNavBg} onClick={() => setSidebarOpen(false)} />
-        <NavItem to="/groups" label="Groups" activeBg={activeNavBg} onClick={() => setSidebarOpen(false)} />
-        <NavItem to="/group-message" label="Group Message" activeBg={activeNavBg} onClick={() => setSidebarOpen(false)} />
-        <NavItem to="/scheduled-messages" label="Scheduled Messages" activeBg={activeNavBg} onClick={() => setSidebarOpen(false)} />
-        <NavItem to="/voice-call" label="Voice Calls" activeBg={activeNavBg} onClick={() => setSidebarOpen(false)} />
-        <NavItem to="/notifications" label="Notifications" activeBg={activeNavBg} onClick={() => setSidebarOpen(false)} />
-        <NavItem to="/funeral-manager" label="Funeral Manager" activeBg={activeNavBg} onClick={() => setSidebarOpen(false)} />
+        <NavItem to="/" label="Funeral Manager" activeBg={activeNavBg} onClick={() => setSidebarOpen(false)} />
         {user?.role === "admin" && (
           <NavItem to="/users" label="Users" activeBg={activeNavBg} onClick={() => setSidebarOpen(false)} />
         )}

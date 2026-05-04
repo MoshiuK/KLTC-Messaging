@@ -1,7 +1,7 @@
 services:
-  kltc-messaging:
+  funeral-manager:
     build: .
-    container_name: kltc-messaging
+    container_name: funeral-manager
     restart: unless-stopped
     ports:
       - "5173:5173"
@@ -10,12 +10,9 @@ services:
       PORT: 5173
       DATABASE_URL: file:/data/db.sqlite
       JWT_SECRET: ${JWT_SECRET}
-      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID}
-      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN}
-      TWILIO_PHONE_NUMBER: ${TWILIO_PHONE_NUMBER}
       CORS_ORIGINS: ${CORS_ORIGINS:-}
     volumes:
-      - kltc-data:/data
+      - funeral-data:/data
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:5173/api/health"]
       interval: 30s
@@ -24,5 +21,5 @@ services:
       start_period: 20s
 
 volumes:
-  kltc-data:
+  funeral-data:
     driver: local

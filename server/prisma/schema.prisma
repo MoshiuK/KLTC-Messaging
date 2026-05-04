@@ -18,14 +18,7 @@ model Organization {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  users               User[]
-  contacts            Contact[]
-  contactGroups       ContactGroup[]
-  contactStatusEvents ContactStatusEvent[]
-  twilioConfigs       TwilioConfig[]
-  conversations       Conversation[]
-  voiceCallTwimls     VoiceCallTwiml[]
-  scheduledMessages   ScheduledMessage[]
+  users User[]
 }
 
 model User {
@@ -39,186 +32,22 @@ model User {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  organization    Organization         @relation(fields: [organizationId], references: [id])
-  createdGroups   ContactGroup[]
-  passwordResets  PasswordResetToken[]
+  organization   Organization         @relation(fields: [organizationId], references: [id])
+  passwordResets PasswordResetToken[]
 
   @@index([organizationId])
 }
 
 model PasswordResetToken {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   userId    String
-  token     String   @unique
+  token     String    @unique
   expiresAt DateTime
   usedAt    DateTime?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id])
 
   @@index([token])
   @@index([userId])
-}
-
-model TwilioConfig {
-  id             String   @id @default(cuid())
-  organizationId String
-  accountSid     String
-  authToken      String
-  phoneNumber    String
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  organization Organization @relation(fields: [organizationId], references: [id])
-
-  @@index([organizationId])
-  @@index([phoneNumber])
-}
-
-model Contact {
-  id                 String   @id @default(cuid())
-  organizationId     String
-  firstName          String
-  lastName           String
-  fullName           String
-  phoneNumber        String
-  email              String?
-  birthday           String?
-  isActive           Boolean  @default(true)
-  isOptedOut         Boolean  @default(false)
-  isBlockedSuspected Boolean  @default(false)
-  blockedReason      String?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-
-  organization     Organization         @relation(fields: [organizationId], references: [id])
-  groupMemberships ContactGroupMember[]
-  statusEvents     ContactStatusEvent[]
-
-  @@unique([organizationId, phoneNumber])
-  @@index([organizationId])
-  @@index([phoneNumber])
-}
-
-model ContactGroup {
-  id              String   @id @default(cuid())
-  organizationId  String
-  name            String
-  description     String?
-  createdByUserId String
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  organization Organization         @relation(fields: [organizationId], references: [id])
-  createdBy    User                 @relation(fields: [createdByUserId], references: [id])
-  members      ContactGroupMember[]
-
-  @@index([organizationId])
-}
-
-model ContactGroupMember {
-  id        String   @id @default(cuid())
-  groupId   String
-  contactId String
-  createdAt DateTime @default(now())
-
-  group   ContactGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  contact Contact      @relation(fields: [contactId], references: [id], onDelete: Cascade)
-
-  @@unique([groupId, contactId])
-  @@index([groupId])
-  @@index([contactId])
-}
-
-model ContactStatusEvent {
-  id             String   @id @default(cuid())
-  organizationId String
-  contactId      String
-  eventType      String
-  source         String
-  detail         String?
-  twilioSid      String?
-  errorCode      String?
-  createdAt      DateTime @default(now())
-
-  organization Organization @relation(fields: [organizationId], references: [id])
-  contact      Contact      @relation(fields: [contactId], references: [id])
-
-  @@index([organizationId])
-  @@index([contactId])
-  @@index([twilioSid])
-  @@index([createdAt])
-}
-
-model Conversation {
-  id             String   @id @default(cuid())
-  organizationId String
-  phoneNumber    String
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  organization Organization @relation(fields: [organizationId], references: [id])
-  messages     Message[]
-
-  @@unique([organizationId, phoneNumber])
-  @@index([organizationId])
-}
-
-model Message {
-  id             String   @id @default(cuid())
-  conversationId String
-  direction      String
-  body           String
-  type           String   @default("sms")
-  status         String?
-  twilioSid      String?  @unique
-  fromNumber     String
-  toNumber       String
-  mediaUrl       String?
-  errorCode      String?
-  errorMessage   String?
-  callDuration   Int?
-  callStatus     String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  conversation Conversation @relation(fields: [conversationId], references: [id])
-
-  @@index([conversationId])
-  @@index([twilioSid])
-  @@index([createdAt])
-}
-
-model ScheduledMessage {
-  id             String   @id @default(cuid())
-  organizationId String
-  contactName    String
-  phoneNumber    String
-  birthday       String   // MM-DD format
-  messageTemplate String
-  scheduledTime  String   @default("08:05") // HH:MM format
-  recurrence     String   @default("annual")
-  isActive       Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  organization Organization @relation(fields: [organizationId], references: [id])
-
-  @@index([organizationId])
-  @@index([birthday])
-}
-
-model VoiceCallTwiml {
-  id             String   @id @default(cuid())
-  organizationId String
-  messageText    String
-  voiceName      String   @default("alice")
-  voiceLanguage  String   @default("en-US")
-  used           Boolean  @default(false)
-  expiresAt      DateTime
-  createdAt      DateTime @default(now())
-
-  organization Organization @relation(fields: [organizationId], references: [id])
-
-  @@index([organizationId])
 }

@@ -7,17 +7,9 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
-import Dashboard from "./pages/Dashboard";
-import Contacts from "./pages/Contacts";
-import Groups from "./pages/Groups";
-import GroupDetail from "./pages/GroupDetail";
-import GroupMessage from "./pages/GroupMessage";
-import VoiceCall from "./pages/VoiceCall";
-import Notifications from "./pages/Notifications";
-import Settings from "./pages/Settings";
-import UserManagement from "./pages/UserManagement";
-import ScheduledMessages from "./pages/ScheduledMessages";
 import FuneralManager from "./pages/FuneralManager";
+import UserManagement from "./pages/UserManagement";
+import Settings from "./pages/Settings";
 
 function AppRoutes() {
   const { user, loading } = useAuth();
@@ -39,17 +31,10 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       >
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/contacts" element={<Contacts />} />
-        <Route path="/groups" element={<Groups />} />
-        <Route path="/groups/:id" element={<GroupDetail />} />
-        <Route path="/group-message" element={<GroupMessage />} />
-        <Route path="/scheduled-messages" element={<ScheduledMessages />} />
-        <Route path="/voice-call" element={<VoiceCall />} />
-        <Route path="/notifications" element={<Notifications />} />
-        <Route path="/users" element={<UserManagement />} />
-        <Route path="/settings" element={<Settings />} />
-        <Route path="/funeral-manager" element={<FuneralManager />} />
+        <Route path="/" element={<FuneralManager />} />
+        <Route path="/funeral-manager" element={<Navigate to="/" replace />} />
+        {user?.role === "admin" && <Route path="/users" element={<UserManagement />} />}
+        {user?.role === "admin" && <Route path="/settings" element={<Settings />} />}
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
