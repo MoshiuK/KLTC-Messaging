@@ -100,19 +100,46 @@ const fmt = (val: string | number): number => {
 const money = (n: number): string =>
   n.toLocaleString("en-US", { style: "currency", currency: "USD" });
 
+const FUNERAL_HOMES = [
+  { name: "Faith Memorials", key: "funeral_orders_faith_memorials" },
+  { name: "S&K Funeral",     key: "funeral_orders_sk_funeral" },
+] as const;
+
+type FuneralHomeKey = typeof FUNERAL_HOMES[number]["key"];
+
 const ROLE_PERMISSIONS = {
-  admin:   { canCreate: true,  canEdit: true,  canDelete: true  },
-  manager: { canCreate: true,  canEdit: true,  canDelete: false },
-  member:  { canCreate: false, canEdit: false, canDelete: false },
+  admin:   { canCreate: true,  canEdit: true,  canDelete: true,  canSwitch: true  },
+  manager: { canCreate: true,  canEdit: true,  canDelete: false, canSwitch: false },
+  member:  { canCreate: false, canEdit: false, canDelete: false, canSwitch: false },
 };
 
 const getPerms = (role?: string) =>
   ROLE_PERMISSIONS[role as keyof typeof ROLE_PERMISSIONS] ?? ROLE_PERMISSIONS.member;
 
+const LS_ACTIVE_HOME = "funeral_active_home";
+
 export default function FuneralManager() {
   const { user } = useAuth();
-  const storageKey = `funeral_orders_${user?.organizationId ?? "default"}`;
   const perms = getPerms(user?.role);
+
+  const [activeHomeKey, setActiveHomeKey] = useState<FuneralHomeKey>(() => {
+    if (perms.canSwitch) {
+      const saved = localStorage.getItem(LS_ACTIVE_HOME) as FuneralHomeKey | null;
+      if (saved && FUNERAL_HOMES.some((h) => h.key === saved)) return saved;
+    }
+    return FUNERAL_HOMES[0].key;
+  });
+
+  const activeHome = FUNERAL_HOMES.find((h) => h.key === activeHomeKey) ?? FUNERAL_HOMES[0];
+  const storageKey = perms.canSwitch ? activeHomeKey : `funeral_orders_${user?.organizationId ?? "default"}`;
+
+  const switchHome = (key: FuneralHomeKey) => {
+    setActiveHomeKey(key);
+    localStorage.setItem(LS_ACTIVE_HOME, key);
+    setOrders([]);
+    setView("dashboard");
+    setCurrentOrder(null);
+  };
 
   const [orders, setOrders] = useState<FuneralOrder[]>([]);
   const [view, setView] = useState<"dashboard" | "list" | "calendar" | "form" | "detail">("dashboard");
@@ -127,6 +154,7 @@ export default function FuneralManager() {
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
+    setOrders([]);
     (async () => {
       try {
         const res = await (window as any).storage?.get(storageKey);
@@ -211,11 +239,27 @@ export default function FuneralManager() {
           <span style={styles.logo}>⚱</span>
           <div>
             <div style={styles.logoText}>MEMORIAL MANAGER</div>
-            <div style={styles.logoSub}>Remote Operations Console</div>
+            <div style={styles.logoSub}>{activeHome.name}</div>
           </div>
           <span style={{ ...styles.badge, background: roleColor(user?.role), fontSize: 10, padding: "3px 10px", marginLeft: 8 }}>
             {(user?.role ?? "member").toUpperCase()}
           </span>
+          {perms.canSwitch && (
+            <div style={styles.homeSwitcher}>
+              {FUNERAL_HOMES.map((h) => (
+                <button
+                  key={h.key}
+                  onClick={() => switchHome(h.key)}
+                  style={{
+                    ...styles.homeBtn,
+                    ...(activeHomeKey === h.key ? styles.homeBtnActive : {}),
+                  }}
+                >
+                  {h.name}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
         <nav style={styles.nav}>
           {[
@@ -891,6 +935,12 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 8, color: "#0f0f12", fontWeight: 700, fontSize: 14,
     boxShadow: "0 4px 20px rgba(0,0,0,0.4)", zIndex: 9999,
   },
+  homeSwitcher: { display: "flex", gap: 4, marginLeft: 16, background: "#0f0f12", borderRadius: 6, padding: 3 },
+  homeBtn: {
+    background: "none", border: "none", color: "#888", padding: "5px 14px",
+    borderRadius: 4, cursor: "pointer", fontSize: 12, fontWeight: 600, whiteSpace: "nowrap",
+  },
+  homeBtnActive: { background: "#2a2830", color: "#c9a96e" },
   calDayLabel: {
     textAlign: "center", fontSize: 11, fontWeight: 700, color: "#666",
     letterSpacing: 1, textTransform: "uppercase", padding: "4px 0",
