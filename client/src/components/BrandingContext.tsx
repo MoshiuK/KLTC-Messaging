@@ -4,7 +4,7 @@ import { api } from "../api/client";
 import { useAuth } from "./AuthContext";
 
 const DEFAULT_BRANDING: BrandingConfig = {
-  appName: "KLTC Messaging",
+  appName: "Faith Memorials",
   logoUrl: null,
   primaryColor: "#1a1a2e",
   secondaryColor: "#3498db",
@@ -29,7 +29,7 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
     try {
       const data = await api.getBranding();
       setBranding(data);
-      document.title = data.appName || "KLTC Messaging";
+      document.title = data.appName || "Faith Memorials";
     } catch {
       setBranding(DEFAULT_BRANDING);
     }
@@ -40,7 +40,7 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
       refreshBranding();
     } else {
       setBranding(DEFAULT_BRANDING);
-      document.title = "KLTC Messaging";
+      document.title = "Faith Memorials";
     }
   }, [user]);
 
