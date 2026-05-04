@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useAuth } from "../components/AuthContext";
 
 const SERVICE_CATEGORIES: Record<string, string[]> = {
   "A1. Professional Services": [
@@ -100,6 +101,9 @@ const money = (n: number): string =>
   n.toLocaleString("en-US", { style: "currency", currency: "USD" });
 
 export default function FuneralManager() {
+  const { user } = useAuth();
+  const storageKey = `funeral_orders_${user?.organizationId ?? "default"}`;
+
   const [orders, setOrders] = useState<FuneralOrder[]>([]);
   const [view, setView] = useState<"dashboard" | "list" | "form" | "detail">("dashboard");
   const [currentOrder, setCurrentOrder] = useState<FuneralOrder | null>(null);
@@ -111,16 +115,16 @@ export default function FuneralManager() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await (window as any).storage?.get("funeral_orders");
+        const res = await (window as any).storage?.get(storageKey);
         if (res?.value) setOrders(JSON.parse(res.value));
       } catch {}
     })();
-  }, []);
+  }, [storageKey]);
 
   const save = async (newOrders: FuneralOrder[]) => {
     setOrders(newOrders);
     try {
-      await (window as any).storage?.set("funeral_orders", JSON.stringify(newOrders));
+      await (window as any).storage?.set(storageKey, JSON.stringify(newOrders));
     } catch {}
   };
 
