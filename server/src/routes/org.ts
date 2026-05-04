@@ -21,7 +21,7 @@ router.get("/branding", requireAuth, async (req: Request, res: Response) => {
     });
 
     res.json({
-      appName: org?.appName || "KLTC Messaging",
+      appName: org?.appName || "Faith Memorials",
       logoUrl: org?.logoUrl || null,
       primaryColor: org?.primaryColor || "#1a1a2e",
       secondaryColor: org?.secondaryColor || "#3498db",
@@ -58,7 +58,7 @@ router.patch("/branding", requireAuth, requireAdmin, async (req: Request, res: R
     });
 
     res.json({
-      appName: updated.appName || "KLTC Messaging",
+      appName: updated.appName || "Faith Memorials",
       logoUrl: updated.logoUrl || null,
       primaryColor: updated.primaryColor || "#1a1a2e",
       secondaryColor: updated.secondaryColor || "#3498db",

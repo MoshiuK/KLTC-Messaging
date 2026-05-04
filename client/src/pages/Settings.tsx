@@ -69,7 +69,7 @@ export default function Settings() {
               value={form.appName}
               onChange={(e) => set("appName", e.target.value)}
               style={inputStyle}
-              placeholder="KLTC Messaging"
+              placeholder="Faith Memorials"
             />
           </div>
 
