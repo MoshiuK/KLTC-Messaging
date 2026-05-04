@@ -1,5 +1,5 @@
 # ── Stage 1: build client ────────────────────────────────────────────────────
-FROM node:20-alpine AS client-build
+FROM node:20-slim AS client-build
 WORKDIR /app/client
 COPY client/package*.json ./
 RUN npm ci
@@ -7,7 +7,7 @@ COPY client/ ./
 RUN npm run build
 
 # ── Stage 2: build server ────────────────────────────────────────────────────
-FROM node:20-alpine AS server-build
+FROM node:20-slim AS server-build
 WORKDIR /app/server
 COPY server/package*.json ./
 RUN npm ci
@@ -16,8 +16,7 @@ RUN npx prisma generate
 RUN npx tsc
 
 # ── Stage 3: production image ─────────────────────────────────────────────────
-FROM node:20-alpine AS production
-RUN apk add --no-cache openssl
+FROM node:20-slim AS production
 WORKDIR /app
 
 # Server runtime deps only
