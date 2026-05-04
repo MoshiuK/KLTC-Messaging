@@ -66,6 +66,7 @@ interface FuneralOrder {
   dateOfService: string;
   serviceType: string;
   status: string;
+  funeralDirector: string;
   familyContact: string;
   familyPhone: string;
   notes: string;
@@ -79,6 +80,7 @@ const emptyOrder = (): FuneralOrder => ({
   dateOfService: "",
   serviceType: "Burial",
   status: "Pending",
+  funeralDirector: "",
   familyContact: "",
   familyPhone: "",
   notes: "",
@@ -446,6 +448,9 @@ function OrderForm({ order, editMode, onSave, onCancel }: {
               {STATUS_OPTIONS.map((s) => <option key={s}>{s}</option>)}
             </select>
           </Field>
+          <Field label="Funeral Director">
+            <input style={styles.input} value={form.funeralDirector} onChange={(e) => setField("funeralDirector", e.target.value)} placeholder="Name of director who met with family" />
+          </Field>
           <Field label="Family Contact Name">
             <input style={styles.input} value={form.familyContact} onChange={(e) => setField("familyContact", e.target.value)} />
           </Field>
@@ -566,6 +571,7 @@ function OrderDetail({ order, onEdit, onDelete, onStatusChange, onBack }: {
           <h3 style={styles.cardTitle}>Service Details</h3>
           <InfoRow label="Service Type" value={order.serviceType} />
           <InfoRow label="Date of Service" value={order.dateOfService || "—"} />
+          <InfoRow label="Funeral Director" value={order.funeralDirector || "—"} />
           <InfoRow label="Family Contact" value={order.familyContact || "—"} />
           <InfoRow label="Phone" value={order.familyPhone || "—"} />
           {order.notes && <InfoRow label="Notes" value={order.notes} />}
