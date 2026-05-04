@@ -115,7 +115,11 @@ export default function FuneralManager() {
   const perms = getPerms(user?.role);
 
   const [orders, setOrders] = useState<FuneralOrder[]>([]);
-  const [view, setView] = useState<"dashboard" | "list" | "form" | "detail">("dashboard");
+  const [view, setView] = useState<"dashboard" | "list" | "calendar" | "form" | "detail">("dashboard");
+  const [calMonth, setCalMonth] = useState(() => {
+    const d = new Date();
+    return { year: d.getFullYear(), month: d.getMonth() };
+  });
   const [currentOrder, setCurrentOrder] = useState<FuneralOrder | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [search, setSearch] = useState("");
@@ -217,10 +221,11 @@ export default function FuneralManager() {
           {[
             { id: "dashboard", label: "Dashboard" },
             { id: "list", label: `Orders (${orders.length})` },
+            { id: "calendar", label: "Calendar" },
           ].map((n) => (
             <button
               key={n.id}
-              onClick={() => setView(n.id as "dashboard" | "list")}
+              onClick={() => setView(n.id as "dashboard" | "list" | "calendar")}
               style={{ ...styles.navBtn, ...(view === n.id ? styles.navActive : {}) }}
             >
               {n.label}
@@ -360,6 +365,24 @@ export default function FuneralManager() {
               )}
             </div>
           </div>
+        )}
+
+        {/* CALENDAR */}
+        {view === "calendar" && (
+          <FuneralCalendar
+            orders={orders}
+            year={calMonth.year}
+            month={calMonth.month}
+            onPrev={() => setCalMonth((c) => {
+              const d = new Date(c.year, c.month - 1);
+              return { year: d.getFullYear(), month: d.getMonth() };
+            })}
+            onNext={() => setCalMonth((c) => {
+              const d = new Date(c.year, c.month + 1);
+              return { year: d.getFullYear(), month: d.getMonth() };
+            })}
+            onOrderClick={(o) => { setCurrentOrder(o); setView("detail"); }}
+          />
         )}
 
         {/* ORDER FORM */}
@@ -668,6 +691,89 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+function FuneralCalendar({ orders, year, month, onPrev, onNext, onOrderClick }: {
+  orders: FuneralOrder[];
+  year: number;
+  month: number;
+  onPrev: () => void;
+  onNext: () => void;
+  onOrderClick: (o: FuneralOrder) => void;
+}) {
+  const monthName = new Date(year, month).toLocaleString("en-US", { month: "long", year: "numeric" });
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const today = new Date().toISOString().slice(0, 10);
+
+  const byDate: Record<string, FuneralOrder[]> = {};
+  orders.forEach((o) => {
+    if (o.dateOfService) {
+      if (!byDate[o.dateOfService]) byDate[o.dateOfService] = [];
+      byDate[o.dateOfService].push(o);
+    }
+  });
+
+  const cells: (number | null)[] = [
+    ...Array(firstDay).fill(null),
+    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+  ];
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+        <h2 style={styles.pageTitle}>{monthName}</h2>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={onPrev} style={styles.backBtn}>← Prev</button>
+          <button onClick={onNext} style={styles.backBtn}>Next →</button>
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, marginBottom: 4 }}>
+        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
+          <div key={d} style={styles.calDayLabel}>{d}</div>
+        ))}
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2 }}>
+        {cells.map((day, i) => {
+          if (!day) return <div key={i} style={styles.calEmpty} />;
+          const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+          const dayOrders = byDate[dateStr] || [];
+          const isToday = dateStr === today;
+          return (
+            <div key={i} style={{ ...styles.calCell, ...(isToday ? styles.calToday : {}) }}>
+              <div style={styles.calDayNum}>{day}</div>
+              {dayOrders.map((o) => (
+                <div
+                  key={o.id}
+                  onClick={() => onOrderClick(o)}
+                  style={{ ...styles.calEvent, borderLeft: `3px solid ${statusColor(o.status)}` }}
+                  title={`${o.deceasedName} — ${o.funeralDirector || "No director assigned"}`}
+                >
+                  <div style={styles.calEventName}>{o.deceasedName || "Unnamed"}</div>
+                  {o.funeralDirector && (
+                    <div style={styles.calEventDir}>👤 {o.funeralDirector}</div>
+                  )}
+                  <div style={styles.calEventType}>{o.serviceType}</div>
+                </div>
+              ))}
+            </div>
+          );
+        })}
+      </div>
+
+      <div style={{ display: "flex", gap: 16, marginTop: 16, flexWrap: "wrap" }}>
+        {Object.entries({ Pending: "#c9a96e", "In Progress": "#6eb5c9", Completed: "#6ec98a", Cancelled: "#c96e6e" }).map(([s, c]) => (
+          <div key={s} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#aaa" }}>
+            <div style={{ width: 10, height: 10, background: c, borderRadius: 2 }} />
+            {s}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const roleColor = (r?: string): string =>
   ({ admin: "#c96e6e", manager: "#6eb5c9", member: "#888" } as Record<string, string>)[r ?? "member"] ?? "#888";
 
@@ -785,4 +891,22 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 8, color: "#0f0f12", fontWeight: 700, fontSize: 14,
     boxShadow: "0 4px 20px rgba(0,0,0,0.4)", zIndex: 9999,
   },
+  calDayLabel: {
+    textAlign: "center", fontSize: 11, fontWeight: 700, color: "#666",
+    letterSpacing: 1, textTransform: "uppercase", padding: "4px 0",
+  },
+  calEmpty: { background: "transparent", minHeight: 100 },
+  calCell: {
+    background: "#16151a", border: "1px solid #2a2830", borderRadius: 6,
+    minHeight: 100, padding: "6px 8px", verticalAlign: "top",
+  },
+  calToday: { border: "1px solid #c9a96e", background: "rgba(201,169,110,0.06)" },
+  calDayNum: { fontSize: 13, fontWeight: 700, color: "#888", marginBottom: 4 },
+  calEvent: {
+    background: "#0f0f12", borderRadius: 4, padding: "4px 6px",
+    marginBottom: 4, cursor: "pointer",
+  },
+  calEventName: { fontSize: 11, fontWeight: 700, color: "#e8e0d0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
+  calEventDir: { fontSize: 10, color: "#6eb5c9", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
+  calEventType: { fontSize: 10, color: "#666" },
 };
