@@ -102,6 +102,7 @@ export default function Layout() {
         <NavItem to="/scheduled-messages" label="Scheduled Messages" activeBg={activeNavBg} onClick={() => setSidebarOpen(false)} />
         <NavItem to="/voice-call" label="Voice Calls" activeBg={activeNavBg} onClick={() => setSidebarOpen(false)} />
         <NavItem to="/notifications" label="Notifications" activeBg={activeNavBg} onClick={() => setSidebarOpen(false)} />
+        <NavItem to="/funeral-manager" label="Funeral Manager" activeBg={activeNavBg} onClick={() => setSidebarOpen(false)} />
         {user?.role === "admin" && (
           <NavItem to="/users" label="Users" activeBg={activeNavBg} onClick={() => setSidebarOpen(false)} />
         )}
