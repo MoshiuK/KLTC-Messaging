@@ -110,7 +110,7 @@ type FuneralHomeKey = typeof FUNERAL_HOMES[number]["key"];
 const ROLE_PERMISSIONS = {
   admin:   { canCreate: true,  canEdit: true,  canDelete: true,  canSwitch: true  },
   manager: { canCreate: true,  canEdit: true,  canDelete: false, canSwitch: false },
-  member:  { canCreate: false, canEdit: false, canDelete: false, canSwitch: false },
+  member:  { canCreate: true,  canEdit: true,  canDelete: false, canSwitch: false },
 };
 
 const getPerms = (role?: string) =>
