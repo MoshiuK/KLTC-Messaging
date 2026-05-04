@@ -17,6 +17,7 @@ RUN npx tsc
 
 # ── Stage 3: production image ─────────────────────────────────────────────────
 FROM node:20-alpine AS production
+RUN apk add --no-cache openssl
 WORKDIR /app
 
 # Server runtime deps only
