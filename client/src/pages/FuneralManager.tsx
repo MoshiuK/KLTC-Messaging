@@ -131,7 +131,7 @@ export default function FuneralManager() {
   });
 
   const activeHome = FUNERAL_HOMES.find((h) => h.key === activeHomeKey) ?? FUNERAL_HOMES[0];
-  const storageKey = perms.canSwitch ? activeHomeKey : `funeral_orders_${user?.organizationId ?? "default"}`;
+  const storageKey = `funeral_orders_${user?.organizationId ?? "default"}`;
 
   const switchHome = (key: FuneralHomeKey) => {
     setActiveHomeKey(key);
